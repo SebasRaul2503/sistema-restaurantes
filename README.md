@@ -152,6 +152,30 @@ Todas las rutas viven bajo el prefijo `/api`. Documentación interactiva en
 
 ---
 
+## 📚 Documentación
+
+La documentación completa para desarrolladores y agentes está en
+[`docs/`](docs/README.md):
+
+- [**DEVELOPMENT.md**](docs/DEVELOPMENT.md) — empieza aquí: puesta en marcha,
+  convenciones, cómo agregar módulos/pantallas, despliegue, troubleshooting.
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — decisiones de arquitectura.
+- [DATA-MODEL.md](docs/DATA-MODEL.md) — entidades, relaciones y reglas de negocio.
+- [API.md](docs/API.md) — referencia de endpoints.
+- [COMPLIANCE.md](docs/COMPLIANCE.md) — cumplimiento de la Ley N° 29733.
+
+---
+
+## 🆘 Soporte
+
+¿Necesitas ayuda? La app incluye una sección **Soporte** en el menú lateral, o
+contáctanos directamente:
+
+- **WhatsApp:** +51 910 840 344
+- **Correo:** seracava2503@gmail.com
+
+---
+
 ## 📜 Licencia
 
 Software propietario para demostración comercial. © 2026.

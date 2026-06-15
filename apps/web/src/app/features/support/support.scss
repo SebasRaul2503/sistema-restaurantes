@@ -1,0 +1,58 @@
+.support-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+  max-width: 760px;
+}
+
+.support-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.support-card h3 { margin: 0; }
+.support-card p { margin: 0; }
+
+.support-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  margin-bottom: var(--space-2);
+}
+.support-icon.whatsapp {
+  background: #25d366;
+  box-shadow: 0 6px 16px color-mix(in srgb, #25d366 40%, transparent);
+}
+.support-icon.mail {
+  background: var(--brand-secondary);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--brand-secondary) 30%, transparent);
+}
+
+.contact-value {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  margin: var(--space-2) 0 var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  word-break: break-all;
+  text-align: center;
+}
+
+.support-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.support-note {
+  margin-top: var(--space-5);
+  max-width: 760px;
+  font-size: var(--fs-sm);
+}

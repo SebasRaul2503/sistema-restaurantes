@@ -9,13 +9,14 @@ import {
 import { ReportsApi } from '../../core/data/reports.api';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
+import { DateField } from '../../shared/components/date-field/date-field';
 
 type RevenuePeriod = 'daily' | 'weekly' | 'monthly';
 
 @Component({
   selector: 'app-reports',
   standalone: true,
-  imports: [FormsModule, SolesPipe, EnumLabelPipe],
+  imports: [FormsModule, SolesPipe, EnumLabelPipe, DateField],
   templateUrl: './reports.html',
   styleUrl: './reports.scss',
 })

@@ -40,6 +40,7 @@ export class MainLayout {
     { path: '/reportes', label: 'Reportes', icon: 'reports', adminOnly: true },
     { path: '/usuarios', label: 'Usuarios', icon: 'users', adminOnly: true },
     { path: '/configuracion', label: 'Configuración', icon: 'settings', adminOnly: true },
+    { path: '/soporte', label: 'Soporte', icon: 'lifebuoy' },
   ];
 
   readonly navItems = computed(() =>

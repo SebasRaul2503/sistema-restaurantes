@@ -1,0 +1,13 @@
+<input
+  class="input"
+  type="text"
+  inputmode="numeric"
+  autocomplete="off"
+  maxlength="10"
+  [id]="id()"
+  [value]="text()"
+  [placeholder]="placeholder()"
+  (input)="onInput($event)"
+  (focus)="onFocus()"
+  (blur)="onBlur()"
+/>

@@ -11,11 +11,11 @@
 <section class="card card-pad filters">
   <div class="field">
     <label for="from">Desde</label>
-    <input id="from" type="date" class="input" [ngModel]="from()" (ngModelChange)="from.set($event)" />
+    <app-date-field id="from" [value]="from()" (valueChange)="from.set($event)" />
   </div>
   <div class="field">
     <label for="to">Hasta</label>
-    <input id="to" type="date" class="input" [ngModel]="to()" (ngModelChange)="to.set($event)" />
+    <app-date-field id="to" [value]="to()" (valueChange)="to.set($event)" />
   </div>
 </section>
 

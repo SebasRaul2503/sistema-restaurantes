@@ -1,0 +1,45 @@
+<div class="page-head">
+  <div>
+    <h1>Soporte</h1>
+    <p class="muted">¿Necesita ayuda? Escríbanos por WhatsApp o correo.</p>
+  </div>
+</div>
+
+<div class="support-grid">
+  <!-- WhatsApp -->
+  <section class="card card-pad support-card">
+    <div class="support-icon whatsapp"><app-icon name="message" [size]="26" /></div>
+    <h3>WhatsApp</h3>
+    <p class="muted">Respuesta rápida en horario de atención.</p>
+    <div class="contact-value">{{ phoneDisplay }}</div>
+    <div class="support-actions">
+      <a class="btn btn-success btn-block" [href]="whatsappUrl" target="_blank" rel="noopener">
+        <app-icon name="message" [size]="18" /> Abrir WhatsApp
+      </a>
+      <button class="btn btn-ghost btn-block" (click)="copy(phoneDisplay, 'Número')">
+        <app-icon name="copy" [size]="16" /> Copiar número
+      </button>
+    </div>
+  </section>
+
+  <!-- Correo -->
+  <section class="card card-pad support-card">
+    <div class="support-icon mail"><app-icon name="mail" [size]="26" /></div>
+    <h3>Correo electrónico</h3>
+    <p class="muted">Para consultas detalladas o con archivos adjuntos.</p>
+    <div class="contact-value">{{ email }}</div>
+    <div class="support-actions">
+      <a class="btn btn-primary btn-block" [href]="mailtoUrl">
+        <app-icon name="mail" [size]="18" /> Enviar correo
+      </a>
+      <button class="btn btn-ghost btn-block" (click)="copy(email, 'Correo')">
+        <app-icon name="copy" [size]="16" /> Copiar correo
+      </button>
+    </div>
+  </section>
+</div>
+
+<p class="support-note muted">
+  Atención de lunes a sábado. Incluya el nombre de su restaurante y una breve
+  descripción del inconveniente para ayudarle más rápido.
+</p>
