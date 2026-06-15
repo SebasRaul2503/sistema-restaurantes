@@ -1,0 +1,147 @@
+<div class="page-head">
+  <div>
+    <h1>Reportes</h1>
+    <p class="muted">Análisis de ingresos y consumo</p>
+  </div>
+  <button class="btn btn-primary btn-sm" (click)="refresh()" [disabled]="loading()">
+    Actualizar
+  </button>
+</div>
+
+<section class="card card-pad filters">
+  <div class="field">
+    <label for="from">Desde</label>
+    <input id="from" type="date" class="input" [ngModel]="from()" (ngModelChange)="from.set($event)" />
+  </div>
+  <div class="field">
+    <label for="to">Hasta</label>
+    <input id="to" type="date" class="input" [ngModel]="to()" (ngModelChange)="to.set($event)" />
+  </div>
+</section>
+
+@if (loading()) {
+  <div class="empty-state">Cargando reportes...</div>
+}
+
+<!-- 1) Ingresos -->
+<section class="card card-pad report">
+  <div class="report-head">
+    <h2>Ingresos</h2>
+    <div class="field period-field">
+      <label for="period">Periodo</label>
+      <select
+        id="period"
+        class="select"
+        [ngModel]="period()"
+        (ngModelChange)="period.set($event); refresh()"
+      >
+        <option value="daily">Diario</option>
+        <option value="weekly">Semanal</option>
+        <option value="monthly">Mensual</option>
+      </select>
+    </div>
+  </div>
+
+  @if (revenue().length) {
+    <div class="chart">
+      @for (point of revenue(); track point.date) {
+        <div class="chart-row">
+          <span class="chart-label">{{ point.date }}</span>
+          <div class="chart-track">
+            <div class="bar bar-primary" [style.width.%]="pct(point.total, revenueMax())"></div>
+          </div>
+          <span class="chart-value">{{ point.total | soles }}</span>
+        </div>
+      }
+    </div>
+    <p class="report-total">Total: <strong>{{ revenueSum() | soles }}</strong></p>
+  } @else if (!loading()) {
+    <div class="empty-state">Sin datos de ingresos.</div>
+  }
+</section>
+
+<!-- 2) Platos más vendidos -->
+<section class="card card-pad report">
+  <h2>Platos más vendidos</h2>
+  @if (dishes().length) {
+    <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Plato</th>
+          <th class="text-right">Cantidad</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (dish of dishes(); track dish.dishId) {
+          <tr>
+            <td>
+              <div class="dish-cell">
+                <span>{{ dish.dishName }}</span>
+                <div class="chart-track chart-track-thin">
+                  <div class="bar bar-secondary" [style.width.%]="pct(dish.quantity, dishesMax())"></div>
+                </div>
+              </div>
+            </td>
+            <td class="text-right">{{ dish.quantity }}</td>
+            <td class="text-right">{{ dish.total | soles }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    </div>
+  } @else if (!loading()) {
+    <div class="empty-state">Sin platos registrados.</div>
+  }
+</section>
+
+<!-- 3) Mesas más usadas -->
+<section class="card card-pad report">
+  <h2>Mesas más usadas</h2>
+  @if (tables().length) {
+    <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Mesa</th>
+          <th class="text-right">N.º pedidos</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (table of tables(); track table.tableId) {
+          <tr>
+            <td>Mesa {{ table.tableNumber }}</td>
+            <td class="text-right">{{ table.orderCount }}</td>
+            <td class="text-right">{{ table.total | soles }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    </div>
+  } @else if (!loading()) {
+    <div class="empty-state">Sin mesas registradas.</div>
+  }
+</section>
+
+<!-- 4) Ingresos por método -->
+<section class="card card-pad report">
+  <h2>Ingresos por método</h2>
+  @if (payments().length) {
+    <div class="chart">
+      @for (pay of payments(); track pay.method) {
+        <div class="chart-row">
+          <span class="chart-label">{{ pay.method | enumLabel: 'paymentMethod' }}</span>
+          <div class="chart-track">
+            <div class="bar bar-info" [style.width.%]="pct(pay.total, paymentsMax())"></div>
+          </div>
+          <span class="chart-meta">{{ pay.count }}</span>
+          <span class="chart-value">{{ pay.total | soles }}</span>
+        </div>
+      }
+    </div>
+  } @else if (!loading()) {
+    <div class="empty-state">Sin pagos registrados.</div>
+  }
+</section>

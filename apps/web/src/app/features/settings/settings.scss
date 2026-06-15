@@ -1,0 +1,84 @@
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.color-row {
+  display: flex;
+  gap: var(--space-4);
+}
+.color-row .field {
+  flex: 1;
+}
+.color-input {
+  height: 44px;
+  padding: var(--space-1);
+  cursor: pointer;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.logo-preview img {
+  max-height: 64px;
+  max-width: 160px;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  padding: var(--space-2);
+}
+
+.preview-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.preview-logo {
+  max-height: 48px;
+  max-width: 120px;
+  object-fit: contain;
+}
+.preview-name {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+}
+
+.swatches {
+  display: flex;
+  gap: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.swatch-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+.swatch-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.sample-btn {
+  box-shadow: var(--shadow-sm);
+}

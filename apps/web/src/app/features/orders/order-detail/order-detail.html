@@ -1,0 +1,235 @@
+@if (order(); as o) {
+  <div class="order-head">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-ghost btn-sm" (click)="back()">← Mesas</button>
+      <div>
+        <h1>Mesa {{ o.tableNumber }} · Pedido #{{ o.code }}</h1>
+        <span class="badge" [class.badge-info]="o.status === OrderStatus.ABIERTA"
+              [class.badge-success]="o.status === OrderStatus.CERRADA"
+              [class.badge-muted]="o.status === OrderStatus.ANULADA">
+          {{ o.status | enumLabel: 'orderStatus' }}
+        </span>
+        <span class="muted"> · Atiende: {{ o.openedByName }}</span>
+      </div>
+    </div>
+    @if (o.status === OrderStatus.ABIERTA && o.payments.length === 0) {
+      <button class="btn btn-danger btn-sm" (click)="cancelOrder()">Anular pedido</button>
+    }
+  </div>
+
+  <div class="order-grid">
+    <!-- Columna izquierda: ítems + carta -->
+    <section class="col">
+      <div class="card card-pad">
+        <h3>Platos del pedido</h3>
+        @if (o.items.length === 0) {
+          <div class="empty-state">Aún no hay platos. Agregue desde la carta.</div>
+        }
+        @for (item of o.items; track item.id) {
+          <div class="item-row" [class.modified]="item.isModified">
+            <div class="item-main">
+              <div class="item-name">
+                {{ item.dishName }}
+                @if (item.isModified) { <span class="badge badge-muted">Corregido</span> }
+                @if (item.replacesItemId) { <span class="badge badge-info">Reemplazo</span> }
+                <span class="badge"
+                  [class.badge-warning]="item.status === 'PENDIENTE'"
+                  [class.badge-info]="item.status === 'PREPARANDO'"
+                  [class.badge-success]="item.status === 'ENTREGADO'">
+                  {{ item.status | enumLabel: 'itemStatus' }}
+                </span>
+              </div>
+              @if (item.notes) { <div class="item-notes">📝 {{ item.notes }}</div> }
+              <div class="muted">{{ item.unitPrice | soles }} c/u</div>
+            </div>
+
+            <div class="item-side">
+              <strong>{{ item.subtotal | soles }}</strong>
+              @if (o.status === OrderStatus.ABIERTA && !item.isModified) {
+                @if (item.status !== 'ENTREGADO') {
+                  <div class="qty">
+                    <button class="btn btn-ghost btn-sm" (click)="changeQty(item, -1)">−</button>
+                    <span>{{ item.quantity }}</span>
+                    <button class="btn btn-ghost btn-sm" (click)="changeQty(item, 1)">+</button>
+                    <button class="btn btn-ghost btn-sm" (click)="removeItem(item)" title="Quitar">✕</button>
+                  </div>
+                } @else {
+                  <div class="qty">
+                    <span>x{{ item.quantity }}</span>
+                    <button class="btn btn-ghost btn-sm" (click)="openReplace(item)">Corregir</button>
+                  </div>
+                }
+              } @else {
+                <span class="muted">x{{ item.quantity }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (o.status === OrderStatus.ABIERTA) {
+        <div class="card card-pad">
+          <h3>Agregar de la carta</h3>
+          <div class="field">
+            <label>Nota para el plato (opcional)</label>
+            <input class="input" placeholder="Ej. Sin cebolla"
+              [ngModel]="itemNotes()" (ngModelChange)="itemNotes.set($event)" />
+          </div>
+          <div class="cat-tabs">
+            <button class="chip" [class.active]="selectedCategory() === ''" (click)="selectedCategory.set('')">Todas</button>
+            @for (c of categories(); track c.id) {
+              <button class="chip" [class.active]="selectedCategory() === c.id" (click)="selectedCategory.set(c.id)">{{ c.name }}</button>
+            }
+          </div>
+          <div class="dish-grid">
+            @for (d of filteredDishes(); track d.id) {
+              <button class="dish-btn" (click)="addDish(d)">
+                <span class="dish-name">{{ d.name }}</span>
+                <span class="muted">{{ d.price | soles }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </section>
+
+    <!-- Columna derecha: cuenta, división, pagos -->
+    <section class="col">
+      <div class="card card-pad totals">
+        <div class="total-row"><span>Subtotal</span><strong>{{ o.total | soles }}</strong></div>
+        <div class="total-row"><span>Pagado</span><strong>{{ o.paid | soles }}</strong></div>
+        <div class="total-row big"><span>Saldo</span><strong>{{ o.balance | soles }}</strong></div>
+      </div>
+
+      @if (o.status === OrderStatus.ABIERTA) {
+        <div class="card card-pad">
+          <h3>Dividir cuenta</h3>
+          <div class="flex items-center gap-2">
+            <span>En partes iguales:</span>
+            <input class="input qty-input" type="number" min="2" max="20"
+              [ngModel]="evenParts()" (ngModelChange)="evenParts.set(+$event)" />
+            <button class="btn btn-ghost btn-sm" (click)="splitEven()">Dividir</button>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <button class="btn btn-ghost btn-sm" (click)="toggleByItems()">
+              {{ byItemsMode() ? 'Cancelar por platos' : 'Dividir por platos' }}
+            </button>
+            @if (o.billGroups.length > 0) {
+              <button class="btn btn-ghost btn-sm" (click)="clearSplit()">Quitar división</button>
+            }
+          </div>
+
+          @if (byItemsMode()) {
+            <div class="byitems mt-4">
+              <div class="field">
+                <label>Número de grupos</label>
+                <input class="input qty-input" type="number" min="2" max="8"
+                  [ngModel]="byItemsGroupCount()" (ngModelChange)="byItemsGroupCount.set(+$event)" />
+              </div>
+              @for (item of activeItems(); track item.id) {
+                <div class="assign-row">
+                  <span>{{ item.dishName }} (x{{ item.quantity }})</span>
+                  <select class="select assign-select"
+                    [ngModel]="itemAssign()[item.id] || 0"
+                    (ngModelChange)="assignItem(item.id, +$event)">
+                    <option [ngValue]="0">— Sin asignar —</option>
+                    @for (g of [].constructor(byItemsGroupCount()); track $index) {
+                      <option [ngValue]="$index + 1">Cliente {{ ['A','B','C','D','E','F','G','H'][$index] }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              <button class="btn btn-primary btn-sm mt-2" (click)="applyByItems()">Aplicar división por platos</button>
+            </div>
+          }
+        </div>
+
+        @if (o.billGroups.length > 0) {
+          <div class="card card-pad">
+            <h3>Grupos de cuenta</h3>
+            @for (g of o.billGroups; track g.id) {
+              <div class="group-row">
+                <div>
+                  <strong>{{ g.name }}</strong>
+                  <div class="muted">{{ g.total | soles }} · saldo {{ g.balance | soles }}</div>
+                  @for (gi of g.items; track gi.id) {
+                    <div class="muted small">{{ gi.quantity }}× {{ gi.dishName }}</div>
+                  }
+                </div>
+                <div class="flex items-center gap-2">
+                  @if (g.balance > 0) {
+                    <button class="btn btn-ghost btn-sm" (click)="selectGroupForPayment(g.id, g.balance)">Cobrar</button>
+                  } @else {
+                    <span class="badge badge-success">Pagado</span>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <div class="card card-pad">
+          <h3>Registrar pago</h3>
+          @if (payBillGroupId()) {
+            <p class="muted">Cobrando al grupo seleccionado · <a (click)="clearGroupSelection()">cobrar al total</a></p>
+          }
+          <div class="field">
+            <label>Método</label>
+            <select class="select" [ngModel]="payMethod()" (ngModelChange)="payMethod.set($event)">
+              @for (m of paymentMethods; track m.value) {
+                <option [ngValue]="m.value">{{ m.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label>Monto</label>
+            <input class="input" type="number" min="0" step="0.1"
+              [ngModel]="payAmount()" (ngModelChange)="payAmount.set(+$event)" />
+          </div>
+          <div class="field">
+            <label>Referencia (opcional)</label>
+            <input class="input" placeholder="N.° de operación"
+              [ngModel]="payReference()" (ngModelChange)="payReference.set($event)" />
+          </div>
+          <button class="btn btn-primary btn-block" (click)="registerPayment()">Registrar pago</button>
+        </div>
+      }
+
+      @if (o.payments.length > 0) {
+        <div class="card card-pad">
+          <h3>Pagos registrados</h3>
+          @for (p of o.payments; track p.id) {
+            <div class="pay-row">
+              <span>{{ p.method | enumLabel: 'paymentMethod' }}</span>
+              <strong>{{ p.amount | soles }}</strong>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+
+  <!-- Modal de corrección de plato entregado -->
+  @if (replacingItem(); as ri) {
+    <div class="modal-backdrop" (click)="cancelReplace()">
+      <div class="modal card card-pad" (click)="$event.stopPropagation()">
+        <h3>Corregir plato entregado</h3>
+        <p class="muted">
+          El plato «{{ ri.dishName }}» se conservará como corregido (no se cobra) y se
+          creará un reemplazo que volverá a cocina.
+        </p>
+        <div class="field">
+          <label>Motivo (opcional)</label>
+          <input class="input" placeholder="Ej. Plato frío"
+            [ngModel]="replaceReason()" (ngModelChange)="replaceReason.set($event)" />
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-primary" (click)="confirmReplace()">Crear reemplazo</button>
+          <button class="btn btn-ghost" (click)="cancelReplace()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  }
+} @else if (loading()) {
+  <div class="empty-state">Cargando pedido...</div>
+}

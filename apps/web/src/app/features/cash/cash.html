@@ -1,0 +1,246 @@
+<div class="page-head">
+  <div>
+    <h1>Control de caja</h1>
+    <p class="muted">Apertura, movimientos y cierre del día</p>
+  </div>
+  <button class="btn btn-ghost btn-sm" (click)="reload()" [disabled]="loading()">Actualizar</button>
+</div>
+
+@if (loading()) {
+  <div class="empty-state">Cargando caja...</div>
+} @else {
+  <!-- Resumen del último cierre -->
+  @if (lastClosed(); as c) {
+    <section class="card card-pad close-result accent-info">
+      <h2>Resultado del cierre</h2>
+      <div class="result-grid">
+        <div class="result-item">
+          <span class="stat-label">Monto esperado</span>
+          <span class="stat-value">{{ c.expectedAmount | soles }}</span>
+        </div>
+        <div class="result-item">
+          <span class="stat-label">Monto real</span>
+          <span class="stat-value">{{ c.actualAmount | soles }}</span>
+        </div>
+        <div class="result-item">
+          <span class="stat-label">Diferencia</span>
+          <span class="stat-value">
+            <span class="badge" [class]="diffBadge(c.difference)">{{ diffLabel(c.difference) }}</span>
+            {{ c.difference | soles }}
+          </span>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (!isOpen()) {
+    <!-- ESTADO A: no hay caja abierta -->
+    <section class="card card-pad open-card">
+      <h2>Abrir caja</h2>
+      <p class="muted">No hay una caja abierta. Ingresa el monto inicial para comenzar.</p>
+      <form (ngSubmit)="openCash()">
+        <div class="field">
+          <label for="openingAmount">Monto inicial</label>
+          <input
+            id="openingAmount"
+            class="input"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            [(ngModel)]="openingAmount"
+            name="openingAmount"
+            required
+          />
+        </div>
+        <button class="btn btn-primary" type="submit" [disabled]="saving() || openingAmount == null">
+          Abrir caja
+        </button>
+      </form>
+    </section>
+  } @else {
+    <!-- ESTADO B: caja abierta -->
+    @if (current(); as session) {
+      <section class="cards-grid">
+        <div class="stat card card-pad accent-secondary">
+          <span class="stat-label">Monto inicial</span>
+          <span class="stat-value">{{ session.openingAmount | soles }}</span>
+        </div>
+        <div class="stat card card-pad accent-success">
+          <span class="stat-label">Ingresos</span>
+          <span class="stat-value">{{ session.totalIncome | soles }}</span>
+        </div>
+        <div class="stat card card-pad accent-danger">
+          <span class="stat-label">Egresos</span>
+          <span class="stat-value">{{ session.totalExpense | soles }}</span>
+        </div>
+        <div class="stat card card-pad accent-info">
+          <span class="stat-label">Ventas en efectivo</span>
+          <span class="stat-value">{{ session.cashSales | soles }}</span>
+        </div>
+        <div class="stat card card-pad accent-primary">
+          <span class="stat-label">Monto esperado</span>
+          <span class="stat-value">{{ session.expectedAmount | soles }}</span>
+        </div>
+      </section>
+
+      <div class="forms-grid">
+        <!-- Registrar movimiento -->
+        <section class="card card-pad">
+          <h2>Registrar movimiento</h2>
+          <form (ngSubmit)="addMovement()">
+            <div class="field">
+              <label for="movementType">Tipo</label>
+              <select id="movementType" class="select" [(ngModel)]="movementType" name="movementType">
+                <option [value]="movementTypes.INGRESO">Ingreso</option>
+                <option [value]="movementTypes.EGRESO">Egreso</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="movementAmount">Monto</label>
+              <input
+                id="movementAmount"
+                class="input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                [(ngModel)]="movementAmount"
+                name="movementAmount"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="movementDescription">Descripción</label>
+              <input
+                id="movementDescription"
+                class="input"
+                type="text"
+                placeholder="Motivo del movimiento"
+                [(ngModel)]="movementDescription"
+                name="movementDescription"
+                required
+              />
+            </div>
+            <button
+              class="btn btn-primary"
+              type="submit"
+              [disabled]="saving() || movementAmount == null || !movementDescription.trim()"
+            >
+              Registrar
+            </button>
+          </form>
+        </section>
+
+        <!-- Cerrar caja -->
+        <section class="card card-pad">
+          <h2>Cerrar caja</h2>
+          <p class="muted">Esperado: {{ session.expectedAmount | soles }}</p>
+          <form (ngSubmit)="closeCash()">
+            <div class="field">
+              <label for="actualAmount">Monto real contado</label>
+              <input
+                id="actualAmount"
+                class="input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                [(ngModel)]="actualAmount"
+                name="actualAmount"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="closeNotes">Notas (opcional)</label>
+              <input
+                id="closeNotes"
+                class="input"
+                type="text"
+                placeholder="Observaciones"
+                [(ngModel)]="closeNotes"
+                name="closeNotes"
+              />
+            </div>
+            <button class="btn btn-danger" type="submit" [disabled]="saving() || actualAmount == null">
+              Cerrar caja
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <!-- Movimientos -->
+      <section class="card card-pad">
+        <h2>Movimientos</h2>
+        @if (session.movements.length) {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Monto</th>
+                  <th>Descripción</th>
+                  <th>Registrado por</th>
+                  <th>Hora</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of session.movements; track m.id) {
+                  <tr>
+                    <td>
+                      <span class="badge" [class]="movementBadge(m.type)">
+                        {{ m.type | enumLabel: 'movementType' }}
+                      </span>
+                    </td>
+                    <td>{{ m.amount | soles }}</td>
+                    <td>{{ m.description }}</td>
+                    <td>{{ m.createdByName }}</td>
+                    <td>{{ m.createdAt | date: 'shortTime' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <div class="empty-state">Aún no hay movimientos registrados.</div>
+        }
+      </section>
+    }
+  }
+
+  <!-- Historial de cierres -->
+  <section class="card card-pad">
+    <h2>Historial de cierres</h2>
+    @if (history().length) {
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Apertura</th>
+              <th>Cierre</th>
+              <th>Esperado</th>
+              <th>Real</th>
+              <th>Diferencia</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of history(); track s.id) {
+              <tr>
+                <td>{{ s.openedAt | date: 'short' }}</td>
+                <td>{{ s.closedAt | date: 'short' }}</td>
+                <td>{{ s.expectedAmount | soles }}</td>
+                <td>{{ s.actualAmount | soles }}</td>
+                <td>
+                  <span class="badge" [class]="diffBadge(s.difference)">{{ diffLabel(s.difference) }}</span>
+                  {{ s.difference | soles }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="empty-state">No hay cierres registrados.</div>
+    }
+  </section>
+}

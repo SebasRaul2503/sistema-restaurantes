@@ -1,0 +1,148 @@
+<div class="page-head">
+  <div>
+    <h1>Configuración del restaurante</h1>
+    <p class="muted">Marca y datos del negocio</p>
+  </div>
+  <button
+    class="btn btn-primary"
+    [disabled]="saving() || loading() || !name().trim()"
+    (click)="save()"
+  >
+    {{ saving() ? 'Guardando...' : 'Guardar cambios' }}
+  </button>
+</div>
+
+@if (loading()) {
+  <div class="empty-state">Cargando configuración...</div>
+} @else {
+  <div class="settings-layout">
+    <section class="card card-pad">
+      <h3>Datos del negocio</h3>
+
+      <div class="field">
+        <label for="name">Nombre del restaurante</label>
+        <input
+          id="name"
+          class="input"
+          type="text"
+          required
+          [ngModel]="name()"
+          (ngModelChange)="name.set($event)"
+        />
+        @if (!name().trim()) {
+          <span class="field-error">El nombre es obligatorio.</span>
+        }
+      </div>
+
+      <div class="field">
+        <label for="address">Dirección</label>
+        <input
+          id="address"
+          class="input"
+          type="text"
+          [ngModel]="address()"
+          (ngModelChange)="address.set($event)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="phone">Teléfono</label>
+        <input
+          id="phone"
+          class="input"
+          type="text"
+          [ngModel]="phone()"
+          (ngModelChange)="phone.set($event)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="businessInfo">Información del negocio</label>
+        <textarea
+          id="businessInfo"
+          class="textarea"
+          rows="4"
+          placeholder="RUC, razón social, etc."
+          [ngModel]="businessInfo()"
+          (ngModelChange)="businessInfo.set($event)"
+        ></textarea>
+      </div>
+    </section>
+
+    <section class="card card-pad">
+      <h3>Marca</h3>
+
+      <div class="color-row">
+        <div class="field">
+          <label for="primaryColor">Color primario</label>
+          <input
+            id="primaryColor"
+            class="input color-input"
+            type="color"
+            [ngModel]="primaryColor()"
+            (ngModelChange)="primaryColor.set($event)"
+          />
+        </div>
+        <div class="field">
+          <label for="secondaryColor">Color secundario</label>
+          <input
+            id="secondaryColor"
+            class="input color-input"
+            type="color"
+            [ngModel]="secondaryColor()"
+            (ngModelChange)="secondaryColor.set($event)"
+          />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="logo">Logo</label>
+        <input
+          id="logo"
+          class="input"
+          type="file"
+          accept="image/*"
+          (change)="onLogoSelected($event)"
+        />
+        @if (logoUrl()) {
+          <div class="logo-preview">
+            <img [src]="logoUrl()" alt="Logo del restaurante" />
+            <button class="btn btn-ghost btn-sm" type="button" (click)="clearLogo()">
+              Quitar logo
+            </button>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="card card-pad preview">
+      <h3>Vista previa</h3>
+      <div class="preview-brand">
+        @if (logoUrl()) {
+          <img class="preview-logo" [src]="logoUrl()" alt="Logo" />
+        }
+        <span class="preview-name">{{ name() || 'Nombre del restaurante' }}</span>
+      </div>
+
+      <div class="swatches">
+        <div class="swatch">
+          <span class="swatch-chip" [style.background]="primaryColor()"></span>
+          <span class="swatch-label">Primario<br /><small class="muted">{{ primaryColor() }}</small></span>
+        </div>
+        <div class="swatch">
+          <span class="swatch-chip" [style.background]="secondaryColor()"></span>
+          <span class="swatch-label">Secundario<br /><small class="muted">{{ secondaryColor() }}</small></span>
+        </div>
+      </div>
+
+      <button
+        class="btn sample-btn"
+        type="button"
+        [style.background]="primaryColor()"
+        [style.color]="'#fff'"
+      >
+        Botón de ejemplo
+      </button>
+    </section>
+  </div>
+}

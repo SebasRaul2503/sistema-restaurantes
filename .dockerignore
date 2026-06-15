@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.angular
+**/coverage
+**/.git
+**/*.log
+apps/api/uploads
+.env
+.env.local
+**/.DS_Store
+/tmp

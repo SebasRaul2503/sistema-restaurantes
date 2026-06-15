@@ -1,0 +1,369 @@
+// ===========================================================================
+// Sistema de Gestión de Restaurantes — Esquema de base de datos (Prisma)
+// Fuente de verdad del modelo de datos. Comentarios en español; identificadores
+// en inglés (convención del proyecto).
+// ===========================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" para desarrollo local; el target musl para la imagen Alpine de Docker.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------------------------------
+// Enumeraciones
+// --------------------------------------------------------------------------
+
+/// Roles del sistema. Máximo 2: administrador y operador (mesero).
+enum UserRole {
+  ADMIN
+  OPERATOR
+}
+
+/// Estados visuales de una mesa.
+enum TableStatus {
+  LIBRE
+  OCUPADA
+  RESERVADA
+  FUERA_DE_SERVICIO
+}
+
+/// Estado del ciclo de vida de un pedido.
+enum OrderStatus {
+  ABIERTA
+  CERRADA
+  ANULADA
+}
+
+/// Flujo de preparación de cada ítem (cocina).
+enum OrderItemStatus {
+  PENDIENTE
+  PREPARANDO
+  ENTREGADO
+}
+
+/// Métodos de pago soportados en Perú.
+enum PaymentMethod {
+  EFECTIVO
+  YAPE
+  PLIN
+  TARJETA
+}
+
+/// Tipo de movimiento de caja.
+enum CashMovementType {
+  INGRESO
+  EGRESO
+}
+
+/// Estado de una sesión de caja.
+enum CashSessionStatus {
+  ABIERTA
+  CERRADA
+}
+
+// --------------------------------------------------------------------------
+// Usuarios y autenticación
+// --------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(OPERATOR)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relaciones inversas (acciones realizadas por el usuario)
+  openedOrders   Order[]        @relation("OrderOpenedBy")
+  payments       Payment[]
+  cashSessions   CashSession[]
+  cashMovements  CashMovement[]
+  auditLogs      AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+// --------------------------------------------------------------------------
+// Configuración y marca del restaurante (fila única)
+// --------------------------------------------------------------------------
+
+model RestaurantSettings {
+  id             String   @id @default(uuid())
+  name           String   @default("Mi Restaurante")
+  logoUrl        String?
+  primaryColor   String   @default("#E63946") // rojo peruano por defecto
+  secondaryColor String   @default("#1D3557")
+  address        String?
+  phone          String?
+  /// Información del negocio (RUC, razón social, etc.). Texto libre.
+  businessInfo   String?
+  currency       String   @default("PEN")
+  updatedAt      DateTime @updatedAt
+
+  @@map("restaurant_settings")
+}
+
+// --------------------------------------------------------------------------
+// Mesas
+// --------------------------------------------------------------------------
+
+model Table {
+  id        String      @id @default(uuid())
+  number    Int         @unique
+  name      String?
+  capacity  Int         @default(4)
+  status    TableStatus @default(LIBRE)
+  /// Posición opcional en el plano del salón (vista tipo floor).
+  posX      Int?
+  posY      Int?
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  orders Order[]
+
+  @@index([status])
+  @@map("tables")
+}
+
+// --------------------------------------------------------------------------
+// Carta (categorías y platos)
+// --------------------------------------------------------------------------
+
+model MenuCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  /// true para las categorías base sembradas (Entradas, Platos principales...).
+  isSystem  Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  dishes Dish[]
+
+  @@map("menu_categories")
+}
+
+model Dish {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?
+  active      Boolean  @default(true)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([active])
+  @@map("dishes")
+}
+
+// --------------------------------------------------------------------------
+// Pedidos
+// --------------------------------------------------------------------------
+
+model Order {
+  id         String      @id @default(uuid())
+  /// Número correlativo legible para el personal.
+  code       Int         @default(autoincrement())
+  tableId    String
+  table      Table       @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  status     OrderStatus @default(ABIERTA)
+  notes      String?
+
+  openedById String
+  openedBy   User        @relation("OrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+
+  openedAt   DateTime    @default(now())
+  closedAt   DateTime?
+  updatedAt  DateTime    @updatedAt
+
+  items      OrderItem[]
+  billGroups BillGroup[]
+  payments   Payment[]
+
+  @@index([status])
+  @@index([tableId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String          @id @default(uuid())
+  orderId   String
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dishId    String
+  dish      Dish            @relation(fields: [dishId], references: [id], onDelete: Restrict)
+
+  /// Precio del plato al momento del pedido (snapshot, no se ve afectado por
+  /// cambios posteriores en la carta).
+  unitPrice Decimal         @db.Decimal(10, 2)
+  quantity  Int             @default(1)
+  notes     String?         // p. ej. "Sin cebolla"
+  status    OrderItemStatus @default(PENDIENTE)
+
+  /// Protección de platos entregados: cuando un ítem entregado se corrige, el
+  /// original se marca como modificado (excluido del total) y se crea un
+  /// reemplazo enlazado por `replacesItemId`.
+  isModified     Boolean    @default(false)
+  replacesItemId String?    @unique
+  replacesItem   OrderItem? @relation("ItemReplacement", fields: [replacesItemId], references: [id])
+  replacedBy     OrderItem? @relation("ItemReplacement")
+
+  deliveredAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  billGroupItems BillGroupItem[]
+
+  @@index([orderId])
+  @@index([status])
+  @@map("order_items")
+}
+
+// --------------------------------------------------------------------------
+// División de cuenta (split)
+// --------------------------------------------------------------------------
+
+model BillGroup {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Etiqueta libre sin PII (p. ej. "Cliente A"). Cumple minimización de datos.
+  name    String
+
+  /// Si está definido, el grupo debe pagar este monto fijo (modo "partes
+  /// iguales"); ignora los ítems asignados. Si es null, el monto se calcula
+  /// desde `items`.
+  fixedAmount Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    BillGroupItem[]
+  payments Payment[]
+
+  @@index([orderId])
+  @@map("bill_groups")
+}
+
+model BillGroupItem {
+  id          String    @id @default(uuid())
+  billGroupId String
+  billGroup   BillGroup @relation(fields: [billGroupId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  /// Porción de la cantidad del ítem asignada a este grupo (permite repartir un
+  /// mismo plato entre varias cuentas).
+  quantity    Int       @default(1)
+
+  @@unique([billGroupId, orderItemId])
+  @@index([orderItemId])
+  @@map("bill_group_items")
+}
+
+// --------------------------------------------------------------------------
+// Pagos
+// --------------------------------------------------------------------------
+
+model Payment {
+  id          String        @id @default(uuid())
+  orderId     String
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// Pago asociado a un grupo de cuenta específico (split). Null = pago global.
+  billGroupId String?
+  billGroup   BillGroup?    @relation(fields: [billGroupId], references: [id], onDelete: SetNull)
+
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(10, 2)
+  reference String?       // n.° de operación de Yape/Plin/tarjeta (opcional)
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+  @@index([method])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+// --------------------------------------------------------------------------
+// Control de caja diario
+// --------------------------------------------------------------------------
+
+model CashSession {
+  id            String            @id @default(uuid())
+  openingAmount Decimal           @db.Decimal(10, 2)
+  /// Monto esperado al cierre = apertura + ingresos − egresos + ventas en efectivo.
+  expectedAmount Decimal?         @db.Decimal(10, 2)
+  /// Monto real contado al cierre.
+  actualAmount  Decimal?          @db.Decimal(10, 2)
+  /// Diferencia = real − esperado (negativa = faltante).
+  difference    Decimal?          @db.Decimal(10, 2)
+  status        CashSessionStatus @default(ABIERTA)
+  notes         String?
+
+  openedById String
+  openedBy   User     @relation(fields: [openedById], references: [id], onDelete: Restrict)
+  openedAt   DateTime @default(now())
+  closedAt   DateTime?
+
+  movements CashMovement[]
+
+  @@index([status])
+  @@map("cash_sessions")
+}
+
+model CashMovement {
+  id          String           @id @default(uuid())
+  sessionId   String
+  session     CashSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type        CashMovementType
+  amount      Decimal          @db.Decimal(10, 2)
+  description String
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("cash_movements")
+}
+
+// --------------------------------------------------------------------------
+// Auditoría
+// --------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Acción realizada (p. ej. "ORDER_CREATED", "PAYMENT_REGISTERED").
+  action    String
+  /// Entidad afectada (p. ej. "Order", "Dish").
+  entity    String
+  entityId  String?
+  /// Detalle adicional en JSON (valores previos/nuevos, montos, etc.).
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

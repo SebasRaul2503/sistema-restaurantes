@@ -1,0 +1,67 @@
+<div class="page-head">
+  <div>
+    <h1>Panel</h1>
+    <p class="muted">Resumen de la operación del día</p>
+  </div>
+  <button class="btn btn-ghost btn-sm" (click)="refresh()">
+    <app-icon name="refresh" [size]="16" /> Actualizar
+  </button>
+</div>
+
+@if (data(); as d) {
+  <!-- Indicadores de ingresos (destacados) -->
+  <section class="revenue-grid">
+    <div class="card card-pad rev-card">
+      <div class="rev-icon"><app-icon name="banknote" [size]="22" /></div>
+      <div>
+        <span class="stat-label">Ingresos de hoy</span>
+        <span class="stat-value big">{{ d.revenueToday | soles }}</span>
+      </div>
+    </div>
+    <div class="card card-pad rev-card secondary">
+      <div class="rev-icon"><app-icon name="calendar" [size]="22" /></div>
+      <div>
+        <span class="stat-label">Ingresos del mes</span>
+        <span class="stat-value big">{{ d.revenueMonth | soles }}</span>
+      </div>
+    </div>
+  </section>
+
+  <h3 class="section-title">Mesas</h3>
+  <section class="cards-grid">
+    <a class="stat card card-pad accent-success" routerLink="/mesas">
+      <div class="stat-top"><span class="stat-label">Libres</span><app-icon name="tables" [size]="18" /></div>
+      <span class="stat-value">{{ d.tablesFree }}</span>
+    </a>
+    <a class="stat card card-pad accent-danger" routerLink="/mesas">
+      <div class="stat-top"><span class="stat-label">Ocupadas</span><app-icon name="tables" [size]="18" /></div>
+      <span class="stat-value">{{ d.tablesOccupied }}</span>
+    </a>
+    <a class="stat card card-pad accent-warning" routerLink="/mesas">
+      <div class="stat-top"><span class="stat-label">Reservadas</span><app-icon name="clock" [size]="18" /></div>
+      <span class="stat-value">{{ d.tablesReserved }}</span>
+    </a>
+    <a class="stat card card-pad accent-info" routerLink="/mesas">
+      <div class="stat-top"><span class="stat-label">Pedidos activos</span><app-icon name="receipt" [size]="18" /></div>
+      <span class="stat-value">{{ d.activeOrders }}</span>
+    </a>
+  </section>
+
+  <h3 class="section-title">Cocina</h3>
+  <section class="cards-grid">
+    <a class="stat card card-pad accent-warning" routerLink="/cocina">
+      <div class="stat-top"><span class="stat-label">Pendientes</span><app-icon name="clock" [size]="18" /></div>
+      <span class="stat-value">{{ d.itemsPending }}</span>
+    </a>
+    <a class="stat card card-pad accent-info" routerLink="/cocina">
+      <div class="stat-top"><span class="stat-label">En preparación</span><app-icon name="kitchen" [size]="18" /></div>
+      <span class="stat-value">{{ d.itemsPreparing }}</span>
+    </a>
+    <div class="stat card card-pad accent-success">
+      <div class="stat-top"><span class="stat-label">Entregados</span><app-icon name="check" [size]="18" /></div>
+      <span class="stat-value">{{ d.itemsDelivered }}</span>
+    </div>
+  </section>
+} @else if (loading()) {
+  <div class="empty-state">Cargando panel...</div>
+}

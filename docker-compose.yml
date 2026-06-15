@@ -1,0 +1,66 @@
+# ===========================================================================
+# Sistema de Gestión de Restaurantes — Orquestación con Docker Compose
+# Levanta todo con:  docker compose up -d
+# ===========================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: restaurante_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-restaurante}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-restaurante_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-restaurante}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-restaurante} -d ${POSTGRES_DB:-restaurante}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: restaurante_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-restaurante}:${POSTGRES_PASSWORD:-restaurante_dev_password}@postgres:5432/${POSTGRES_DB:-restaurante}?schema=public
+      API_PORT: 3000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-cambie_este_secreto_de_acceso_en_produccion}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-cambie_este_secreto_de_refresco_en_produccion}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@restaurante.pe}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin1234}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrador}
+    ports:
+      - '${API_PORT:-3000}:3000'
+    volumes:
+      - api_uploads:/app/apps/api/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_URL: ${API_URL:-http://localhost:3000}
+    container_name: restaurante_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${WEB_PORT:-4200}:80'
+
+volumes:
+  postgres_data:
+  api_uploads:

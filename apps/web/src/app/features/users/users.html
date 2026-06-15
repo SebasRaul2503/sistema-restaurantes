@@ -1,0 +1,196 @@
+<div class="page-head">
+  <div>
+    <h1>Gestión de usuarios</h1>
+    <p class="muted">Administra el acceso del personal al sistema</p>
+  </div>
+  <button class="btn btn-primary btn-sm" (click)="toggleCreate()">
+    {{ showCreate() ? 'Cancelar' : 'Agregar usuario' }}
+  </button>
+</div>
+
+@if (showCreate()) {
+  <form class="card card-pad form-grid" (ngSubmit)="create()" #createForm="ngForm">
+    <h3>Nuevo usuario</h3>
+    <div class="grid grid-2">
+      <div class="field">
+        <label for="new-email">Correo</label>
+        <input
+          id="new-email"
+          name="email"
+          type="email"
+          class="input"
+          required
+          email
+          [ngModel]="newUser().email"
+          (ngModelChange)="setNewEmail($event)"
+        />
+      </div>
+      <div class="field">
+        <label for="new-name">Nombre</label>
+        <input
+          id="new-name"
+          name="name"
+          type="text"
+          class="input"
+          required
+          [ngModel]="newUser().name"
+          (ngModelChange)="setNewName($event)"
+        />
+      </div>
+      <div class="field">
+        <label for="new-password">Contraseña</label>
+        <input
+          id="new-password"
+          name="password"
+          type="password"
+          class="input"
+          required
+          minlength="8"
+          [ngModel]="newUser().password"
+          (ngModelChange)="setNewPassword($event)"
+        />
+        <span class="muted field-hint">Mínimo 8 caracteres</span>
+      </div>
+      <div class="field">
+        <label for="new-role">Rol</label>
+        <select
+          id="new-role"
+          name="role"
+          class="select"
+          [ngModel]="newUser().role"
+          (ngModelChange)="setNewRole($event)"
+        >
+          <option [value]="UserRole.ADMIN">Administrador</option>
+          <option [value]="UserRole.OPERATOR">Mesero / Operador</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost" (click)="toggleCreate()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" [disabled]="createForm.invalid || saving()">
+        Crear usuario
+      </button>
+    </div>
+  </form>
+}
+
+<div class="card table-card">
+  @if (users().length) {
+    <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Correo</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th class="text-right">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (user of users(); track user.id) {
+          <tr>
+            <td>{{ user.name }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.role | enumLabel: 'role' }}</td>
+            <td>
+              @if (user.active) {
+                <span class="badge badge-success">Activo</span>
+              } @else {
+                <span class="badge badge-muted">Inactivo</span>
+              }
+            </td>
+            <td class="text-right">
+              <div class="row-actions">
+                <button class="btn btn-ghost btn-sm" (click)="startEdit(user)">Editar</button>
+                <button
+                  class="btn btn-danger btn-sm"
+                  [disabled]="!user.active"
+                  (click)="deactivate(user)"
+                >
+                  Desactivar
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          @if (editing(); as edit) {
+            @if (edit.id === user.id) {
+              <tr class="edit-row">
+                <td colspan="5">
+                  <form class="form-grid" (ngSubmit)="saveEdit()">
+                    <h3>Editar usuario</h3>
+                    <div class="grid grid-2">
+                      <div class="field">
+                        <label [attr.for]="'edit-name-' + user.id">Nombre</label>
+                        <input
+                          [id]="'edit-name-' + user.id"
+                          name="edit-name"
+                          type="text"
+                          class="input"
+                          required
+                          [ngModel]="edit.name"
+                          (ngModelChange)="setEditName($event)"
+                        />
+                      </div>
+                      <div class="field">
+                        <label [attr.for]="'edit-role-' + user.id">Rol</label>
+                        <select
+                          [id]="'edit-role-' + user.id"
+                          name="edit-role"
+                          class="select"
+                          [ngModel]="edit.role"
+                          (ngModelChange)="setEditRole($event)"
+                        >
+                          <option [value]="UserRole.ADMIN">Administrador</option>
+                          <option [value]="UserRole.OPERATOR">Mesero / Operador</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label [attr.for]="'edit-password-' + user.id">Nueva contraseña</label>
+                        <input
+                          [id]="'edit-password-' + user.id"
+                          name="edit-password"
+                          type="password"
+                          class="input"
+                          minlength="8"
+                          [ngModel]="edit.password"
+                          (ngModelChange)="setEditPassword($event)"
+                        />
+                        <span class="muted field-hint">Déjala en blanco para mantenerla</span>
+                      </div>
+                      <div class="field">
+                        <label class="checkbox-field">
+                          <input
+                            type="checkbox"
+                            name="edit-active"
+                            [ngModel]="edit.active"
+                            (ngModelChange)="setEditActive($event)"
+                          />
+                          Usuario activo
+                        </label>
+                      </div>
+                    </div>
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-ghost" (click)="cancelEdit()">
+                        Cancelar
+                      </button>
+                      <button type="submit" class="btn btn-primary" [disabled]="saving()">
+                        Guardar cambios
+                      </button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            }
+          }
+        }
+      </tbody>
+    </table>
+    </div>
+  } @else if (loading()) {
+    <div class="empty-state">Cargando usuarios...</div>
+  } @else {
+    <div class="empty-state">No hay usuarios registrados.</div>
+  }
+</div>

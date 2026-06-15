@@ -1,0 +1,47 @@
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.form-grid {
+  margin-bottom: var(--space-5);
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.field-hint {
+  font-size: var(--fs-xs);
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.table-card {
+  overflow: hidden;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.edit-row > td {
+  background: var(--color-surface-2);
+  padding: var(--space-5);
+}

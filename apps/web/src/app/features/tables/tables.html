@@ -1,0 +1,131 @@
+<div class="page-head">
+  <div>
+    <h1>Salón</h1>
+    <p class="muted">Vista operativa de las mesas</p>
+  </div>
+  <div class="flex gap-2">
+    @if (isAdmin()) {
+      <button class="btn btn-primary btn-sm" (click)="toggleAddForm()">Agregar mesa</button>
+    }
+    <button class="btn btn-ghost btn-sm" (click)="refresh()">Actualizar</button>
+  </div>
+</div>
+
+<section class="chips">
+  <div class="chip chip-success">
+    <span class="chip-value">{{ counts()[TableStatus.LIBRE] }}</span>
+    <span class="chip-label">Libres</span>
+  </div>
+  <div class="chip chip-danger">
+    <span class="chip-value">{{ counts()[TableStatus.OCUPADA] }}</span>
+    <span class="chip-label">Ocupadas</span>
+  </div>
+  <div class="chip chip-warning">
+    <span class="chip-value">{{ counts()[TableStatus.RESERVADA] }}</span>
+    <span class="chip-label">Reservadas</span>
+  </div>
+  <div class="chip chip-muted">
+    <span class="chip-value">{{ counts()[TableStatus.FUERA_DE_SERVICIO] }}</span>
+    <span class="chip-label">Fuera de servicio</span>
+  </div>
+</section>
+
+@if (isAdmin() && showAddForm()) {
+  <div class="card card-pad add-form">
+    <div class="add-grid">
+      <div class="field">
+        <label for="new-number">Número</label>
+        <input id="new-number" class="input" type="number" min="1"
+               [ngModel]="newTable().number"
+               (ngModelChange)="setNewNumber($event)" />
+      </div>
+      <div class="field">
+        <label for="new-name">Nombre</label>
+        <input id="new-name" class="input" type="text" placeholder="Opcional"
+               [ngModel]="newTable().name"
+               (ngModelChange)="setNewName($event)" />
+      </div>
+      <div class="field">
+        <label for="new-capacity">Capacidad</label>
+        <input id="new-capacity" class="input" type="number" min="1"
+               [ngModel]="newTable().capacity"
+               (ngModelChange)="setNewCapacity($event)" />
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-primary btn-sm" (click)="createTable()"
+              [disabled]="newTable().number === null">Guardar</button>
+      <button class="btn btn-ghost btn-sm" (click)="toggleAddForm()">Cancelar</button>
+    </div>
+  </div>
+}
+
+@if (cards().length > 0) {
+  <section class="floor">
+    @for (card of cards(); track card.id) {
+      <div class="table-card card"
+           [class.clickable]="card.status !== TableStatus.FUERA_DE_SERVICIO && editingId() !== card.id"
+           [class.is-occupied]="card.status === TableStatus.OCUPADA"
+           (click)="onCardClick(card)">
+        <div class="table-top">
+          <span class="table-number">{{ card.number }}</span>
+          <span class="badge" [class]="badgeClass(card.status)">{{ card.status | enumLabel:'tableStatus' }}</span>
+        </div>
+
+        @if (card.name) {
+          <p class="table-name">{{ card.name }}</p>
+        }
+        <p class="muted table-cap">{{ card.capacity }} pers.</p>
+
+        @if (card.order) {
+          <div class="order-summary">
+            <span>{{ card.order.itemCount }} ítems</span>
+            <strong>{{ card.order.total | soles }}</strong>
+          </div>
+        }
+
+        <div class="table-controls" (click)="$event.stopPropagation()">
+          <select class="select select-sm"
+                  [ngModel]="card.status"
+                  (ngModelChange)="onStatusChange(card, $event)">
+            @for (status of statuses; track status) {
+              <option [value]="status">{{ status | enumLabel:'tableStatus' }}</option>
+            }
+          </select>
+
+          @if (isAdmin()) {
+            @if (editingId() === card.id) {
+              <div class="edit-form">
+                <div class="field">
+                  <label [for]="'edit-name-' + card.id">Nombre</label>
+                  <input [id]="'edit-name-' + card.id" class="input" type="text"
+                         [ngModel]="editForm().name"
+                         (ngModelChange)="setEditName($event)" />
+                </div>
+                <div class="field">
+                  <label [for]="'edit-cap-' + card.id">Capacidad</label>
+                  <input [id]="'edit-cap-' + card.id" class="input" type="number" min="1"
+                         [ngModel]="editForm().capacity"
+                         (ngModelChange)="setEditCapacity($event)" />
+                </div>
+                <div class="flex gap-2">
+                  <button class="btn btn-success btn-sm" (click)="saveEdit(card)">Guardar</button>
+                  <button class="btn btn-ghost btn-sm" (click)="cancelEdit()">Cancelar</button>
+                </div>
+              </div>
+            } @else {
+              <div class="flex gap-2 admin-actions">
+                <button class="btn btn-ghost btn-sm" (click)="startEdit(card)">Editar</button>
+                <button class="btn btn-danger btn-sm" (click)="removeTable(card)">Desactivar</button>
+              </div>
+            }
+          }
+        </div>
+      </div>
+    }
+  </section>
+} @else if (loading()) {
+  <div class="empty-state">Cargando salón...</div>
+} @else {
+  <div class="empty-state">No hay mesas registradas.</div>
+}

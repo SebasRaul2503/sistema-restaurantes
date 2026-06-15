@@ -1,0 +1,58 @@
+<div class="shell" [class.collapsed]="!sidebarOpen()" [class.is-mobile]="isMobile()">
+  <!-- Fondo oscuro para cerrar el menú en móvil -->
+  @if (isMobile() && sidebarOpen()) {
+    <div class="backdrop" (click)="toggleSidebar()"></div>
+  }
+
+  <aside class="sidebar">
+    <div class="brand">
+      @if (settings()?.logoUrl) {
+        <img class="brand-logo" [src]="settings()!.logoUrl" alt="Logo" />
+      } @else {
+        <div class="brand-mark">{{ (settings()?.name || 'R')[0] }}</div>
+      }
+      <span class="brand-name">{{ settings()?.name || 'Restaurante' }}</span>
+    </div>
+
+    <nav class="nav">
+      @for (item of navItems(); track item.path) {
+        <a
+          class="nav-link"
+          [routerLink]="item.path"
+          routerLinkActive="active"
+          (click)="onNavigate()"
+        >
+          <app-icon [name]="item.icon" [size]="19" />
+          <span class="nav-label">{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="muted sidebar-version">Gestión de Restaurante</div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn" (click)="toggleSidebar()" aria-label="Mostrar u ocultar menú">
+        <app-icon name="bars" [size]="22" />
+      </button>
+      <div class="spacer"></div>
+      <div class="user-chip">
+        <div class="avatar">{{ initials(user()?.name) }}</div>
+        <div class="user-meta">
+          <strong>{{ user()?.name }}</strong>
+          <small class="muted">{{ user()?.role === 'ADMIN' ? 'Administrador' : 'Mesero / Operador' }}</small>
+        </div>
+        <button class="btn btn-ghost btn-sm" (click)="logout()" aria-label="Cerrar sesión">
+          <app-icon name="logout" [size]="16" /> <span class="salir-label">Salir</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+      <router-outlet />
+    </main>
+  </div>
+</div>

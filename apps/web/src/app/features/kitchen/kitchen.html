@@ -1,0 +1,74 @@
+<div class="page-head">
+  <div>
+    <h1>Cocina</h1>
+    <p class="muted">Tablero de preparación de platos</p>
+  </div>
+  <button class="btn btn-ghost btn-sm" (click)="refresh()">Actualizar</button>
+</div>
+
+@if (items().length === 0) {
+  @if (loading()) {
+    <div class="empty-state">Cargando cocina...</div>
+  } @else {
+    <div class="empty-state">No hay platos pendientes en cocina.</div>
+  }
+} @else {
+  <section class="board">
+    <div class="column">
+      <header class="column-head">
+        <h3>Pendientes</h3>
+        <span class="badge badge-warning">{{ pending().length }}</span>
+      </header>
+      @for (item of pending(); track item.id) {
+        <article class="ticket card card-pad accent-pending">
+          <div class="ticket-top">
+            <span class="ticket-table">Mesa {{ item.tableNumber }}</span>
+            <span class="ticket-code">#{{ item.orderCode }}</span>
+          </div>
+          @if (item.isReplacement) {
+            <span class="badge badge-info">Reemplazo</span>
+          }
+          <p class="ticket-dish">{{ item.dishName }} × {{ item.quantity }}</p>
+          @if (item.notes) {
+            <p class="ticket-notes">📝 {{ item.notes }}</p>
+          }
+          <span class="ticket-time muted">{{ waitingLabel(item.createdAt) }}</span>
+          <div class="ticket-actions">
+            <button class="btn btn-primary btn-sm btn-block" (click)="start(item)">Empezar</button>
+          </div>
+        </article>
+      } @empty {
+        <p class="muted column-empty">Sin platos pendientes.</p>
+      }
+    </div>
+
+    <div class="column">
+      <header class="column-head">
+        <h3>En preparación</h3>
+        <span class="badge badge-info">{{ preparing().length }}</span>
+      </header>
+      @for (item of preparing(); track item.id) {
+        <article class="ticket card card-pad accent-preparing">
+          <div class="ticket-top">
+            <span class="ticket-table">Mesa {{ item.tableNumber }}</span>
+            <span class="ticket-code">#{{ item.orderCode }}</span>
+          </div>
+          @if (item.isReplacement) {
+            <span class="badge badge-info">Reemplazo</span>
+          }
+          <p class="ticket-dish">{{ item.dishName }} × {{ item.quantity }}</p>
+          @if (item.notes) {
+            <p class="ticket-notes">📝 {{ item.notes }}</p>
+          }
+          <span class="ticket-time muted">{{ waitingLabel(item.createdAt) }}</span>
+          <div class="ticket-actions">
+            <button class="btn btn-success btn-sm" (click)="deliver(item)">Entregar</button>
+            <button class="btn btn-ghost btn-sm" (click)="back(item)">Regresar</button>
+          </div>
+        </article>
+      } @empty {
+        <p class="muted column-empty">Sin platos en preparación.</p>
+      }
+    </div>
+  </section>
+}

@@ -1,0 +1,111 @@
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+
+  .field {
+    margin-bottom: 0;
+    min-width: 180px;
+  }
+}
+
+.report {
+  margin-bottom: var(--space-5);
+}
+
+.report-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.period-field {
+  margin-bottom: 0;
+  min-width: 160px;
+}
+
+.report-total {
+  margin: var(--space-4) 0 0;
+  text-align: right;
+  font-size: var(--fs-md);
+}
+
+/* ----- Gráfico de barras CSS ----- */
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.chart-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-track {
+  position: relative;
+  height: 18px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.chart-track-thin {
+  height: 8px;
+  margin-top: var(--space-1);
+}
+
+.bar {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+.bar-primary { background: var(--brand-primary); }
+.bar-secondary { background: var(--brand-secondary); }
+.bar-info { background: var(--color-info); }
+
+.chart-meta {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+  min-width: 32px;
+  text-align: right;
+}
+
+.chart-value {
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 90px;
+  text-align: right;
+}
+
+.dish-cell {
+  display: flex;
+  flex-direction: column;
+}
