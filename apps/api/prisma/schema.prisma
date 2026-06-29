@@ -96,9 +96,35 @@ model User {
   cashMovements CashMovement[]
   auditLogs     AuditLog[]
   memberships   RestaurantMember[]
+  refreshTokens RefreshToken[]
 
   @@index([role])
   @@map("users")
+}
+
+/// Tokens de refresh activos por usuario. Permite rotación: cada /auth/refresh
+/// revoca el jti anterior y emite uno nuevo, anulando cualquier refresh
+/// filtrado en cuanto se detecta. La cookie httpOnly del frontend lleva el JWT
+/// cuyo `jti` debe existir y no estar revocado aquí.
+model RefreshToken {
+  id           String    @id @default(uuid())
+  /// Identificador único del JWT (claim `jti`). Indexado/único para lookup
+  /// rápido en cada /auth/refresh.
+  jti          String    @unique
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Cuándo expira el JWT (alineado con JWT_REFRESH_EXPIRES_IN).
+  expiresAt    DateTime
+  /// Si está set, el token está revocado y no puede usarse.
+  revokedAt    DateTime?
+  /// jti del token que REEMPLAZÓ a este (para trazabilidad de la rotación).
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
 }
 
 // --------------------------------------------------------------------------
