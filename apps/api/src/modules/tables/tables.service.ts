@@ -15,7 +15,14 @@ export class TablesService {
     private readonly audit: AuditService,
   ) {}
 
+  private ensureRestaurant(restaurantId: string): void {
+    if (!restaurantId) {
+      throw new BadRequestException('No se ha seleccionado un local activo.');
+    }
+  }
+
   async findAll(restaurantId: string): Promise<TableDto[]> {
+    this.ensureRestaurant(restaurantId);
     const tables = await this.prisma.table.findMany({
       where: { restaurantId },
       orderBy: { number: 'asc' },
@@ -24,6 +31,7 @@ export class TablesService {
   }
 
   async findOne(id: string, restaurantId: string): Promise<TableDto> {
+    this.ensureRestaurant(restaurantId);
     const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
@@ -32,9 +40,7 @@ export class TablesService {
   }
 
   async create(dto: CreateTableDto, actorId: string, restaurantId: string): Promise<TableDto> {
-    if (!restaurantId) {
-      throw new BadRequestException('No se ha seleccionado un local activo.');
-    }
+    this.ensureRestaurant(restaurantId);
     const existing = await this.prisma.table.findUnique({
       where: { restaurantId_number: { restaurantId, number: dto.number } },
     });
@@ -71,9 +77,7 @@ export class TablesService {
     actorId: string,
     restaurantId: string,
   ): Promise<TableDto> {
-    if (!restaurantId) {
-      throw new BadRequestException('No se ha seleccionado un local activo.');
-    }
+    this.ensureRestaurant(restaurantId);
     const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
@@ -116,9 +120,7 @@ export class TablesService {
     actorId: string,
     restaurantId: string,
   ): Promise<TableDto> {
-    if (!restaurantId) {
-      throw new BadRequestException('No se ha seleccionado un local activo.');
-    }
+    this.ensureRestaurant(restaurantId);
     const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
@@ -139,9 +141,7 @@ export class TablesService {
   }
 
   async remove(id: string, actorId: string, restaurantId: string): Promise<TableDto> {
-    if (!restaurantId) {
-      throw new BadRequestException('No se ha seleccionado un local activo.');
-    }
+    this.ensureRestaurant(restaurantId);
     const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
