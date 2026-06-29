@@ -18,9 +18,13 @@ export interface AuthUser {
   role: UserRole;
 }
 
+/**
+ * El access token vive en memoria del cliente (signal). El refresh token
+ * viaja como cookie httpOnly: el browser lo envía solo a /api/auth/* y el
+ * backend lo lee de la cookie. No se expone al JS ni a XSS.
+ */
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
 }
 
 export interface LoginResponse extends AuthTokens {

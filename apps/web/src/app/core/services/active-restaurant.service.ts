@@ -2,19 +2,18 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { MyRestaurantDto } from '@restaurante/shared-types';
 import { RestaurantsApi } from '../data/restaurants.api';
 
-const ACTIVE_RESTAURANT_KEY = 'rst_active_restaurant';
-
 /**
  * Estado de los locales disponibles para el usuario y del local activo.
- * Persiste el `activeRestaurantId` en localStorage para mantener la elección
- * entre recargas.
+ * Vive SOLO en memoria (signals). No persiste en localStorage: al recargar
+ * la pestaña o cambiar de dispositivo, se vuelve a pedir al backend (y el
+ * backend puede sugerir el último local si lo guardó en su sesión).
  */
 @Injectable({ providedIn: 'root' })
 export class ActiveRestaurantService {
   private readonly api = inject(RestaurantsApi);
 
   readonly restaurants = signal<MyRestaurantDto[]>([]);
-  readonly activeRestaurantId = signal<string | null>(this.restore());
+  readonly activeRestaurantId = signal<string | null>(null);
   readonly loaded = signal(false);
 
   readonly activeRestaurant = computed<MyRestaurantDto | null>(() => {
@@ -34,13 +33,11 @@ export class ActiveRestaurantService {
       const list = await this.api.listMine();
       this.restaurants.set(list);
 
-      const stored = this.activeRestaurantId();
-      const stillValid = stored !== null && list.some((r) => r.id === stored);
+      const current = this.activeRestaurantId();
+      const stillValid = current !== null && list.some((r) => r.id === current);
       if (!stillValid) {
-        const next = list.length === 1 ? list[0]?.id ?? null : null;
+        const next = list.length === 1 ? (list[0]?.id ?? null) : null;
         this.setActive(next);
-      } else if (list.length === 1 && list[0]?.id !== stored) {
-        this.setActive(list[0].id);
       }
     } catch {
       this.restaurants.set([]);
@@ -52,20 +49,11 @@ export class ActiveRestaurantService {
 
   setActive(id: string | null): void {
     this.activeRestaurantId.set(id);
-    if (id === null) {
-      localStorage.removeItem(ACTIVE_RESTAURANT_KEY);
-    } else {
-      localStorage.setItem(ACTIVE_RESTAURANT_KEY, id);
-    }
   }
 
   clear(): void {
     this.restaurants.set([]);
-    this.setActive(null);
+    this.activeRestaurantId.set(null);
     this.loaded.set(false);
-  }
-
-  private restore(): string | null {
-    return localStorage.getItem(ACTIVE_RESTAURANT_KEY);
   }
 }

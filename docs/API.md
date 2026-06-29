@@ -12,11 +12,16 @@ ISO (`yyyy-mm-dd` o ISO datetime).
 
 ## Autenticación — `/auth`
 
-| Método | Ruta | Acceso | Descripción |
-|--------|------|--------|-------------|
-| POST | `/auth/login` | Público | Inicia sesión. Body `{ email, password }` → `{ accessToken, refreshToken, user }`. |
-| POST | `/auth/refresh` | Público | Renueva tokens. Body `{ refreshToken }`. |
-| GET  | `/auth/me` | Cualquiera | Usuario + locales disponibles + local activo. Respuesta: `{ user, restaurants, activeRestaurantId, isSuperAdmin }`. Si se envía el header `X-Restaurant-Id`, se incluye en `activeRestaurantId` (verificado). |
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/auth/login` | Público | Inicia sesión. Body `{ email, password }`. Responde `{ accessToken, user }` y **setea la cookie `refresh_token` (httpOnly, Path=/api/auth, SameSite=Strict en prod, Max-Age=7d)**. |
+| POST | `/auth/refresh` | Público | Renueva el access token. **Lee la cookie `refresh_token`**, la rota (revoca el jti anterior, emite uno nuevo) y vuelve a setear la cookie. Body de respuesta: `{ accessToken }`. |
+| POST | `/auth/logout` | Bearer | Cierra la sesión. Revoca el refresh presentado (o todos los del usuario) y limpia la cookie. Responde 204. |
+| GET  | `/auth/me` | Bearer | Usuario + locales disponibles + local activo. Respuesta: `{ user, restaurants, activeRestaurantId, isSuperAdmin }`. Si se envía el header `X-Restaurant-Id`, se incluye en `activeRestaurantId` (verificado). |
+
+> El access token se envía en cada request vía header `Authorization: Bearer …`.
+> El refresh token **nunca** viaja en el body: solo en la cookie httpOnly.
+> La cookie tiene `Path=/api/auth` (alcance limitado) y `Secure` en producción.
 
 ## Mis locales — `/my-restaurants` (Cualquiera)
 
