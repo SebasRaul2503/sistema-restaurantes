@@ -27,6 +27,99 @@ export interface LoginResponse extends AuthTokens {
   user: AuthUser;
 }
 
+// --- Multi-local: Locales (establecimientos) y membresías ---
+
+/** Local/establecimiento. La marca puede sobreescribir la del tenant. */
+export interface RestaurantDto {
+  id: string;
+  slug: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Resumen del local con el rol del usuario actual DENTRO de él. */
+export interface MyRestaurantDto extends RestaurantDto {
+  /** Rol del usuario en este local. Null = superadmin (ve todo sin membresía). */
+  role: UserRole | null;
+  memberActive: boolean | null;
+}
+
+/** Membresía de un usuario en un local. */
+export interface RestaurantMemberDto {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  restaurantId: string;
+  role: UserRole;
+  active: boolean;
+  createdAt: string;
+}
+
+/** Payload para crear un local. */
+export interface CreateRestaurantDto {
+  slug: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+}
+
+/** Payload para actualizar un local. */
+export interface UpdateRestaurantDto {
+  slug?: string;
+  name?: string;
+  address?: string;
+  phone?: string;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  logoUrl?: string | null;
+  active?: boolean;
+}
+
+/** Payload para asignar un miembro. */
+export interface CreateMemberDto {
+  userId: string;
+  role: UserRole;
+}
+
+/** Payload para actualizar un miembro. */
+export interface UpdateMemberDto {
+  role?: UserRole;
+  active?: boolean;
+}
+
+/** Marca efectiva para un local (override o tenant). */
+export interface RestaurantThemeDto {
+  name: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+}
+
+/** Respuesta extendida de `/api/auth/me`: usuario + locales disponibles. */
+export interface MeResponse {
+  user: AuthUser;
+  restaurants: MyRestaurantDto[];
+  /**
+   * Local activo persistido o null. Lo decide el backend según el header
+   * `X-Restaurant-Id` enviado por la web; si no viene o el usuario no tiene
+   * acceso, devuelve null.
+   */
+  activeRestaurantId: string | null;
+  /** true si el usuario es superadmin (rol ADMIN sin membresías). */
+  isSuperAdmin: boolean;
+}
+
 export interface UserDto {
   id: string;
   email: string;

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { OrderDto, OrderStatus, PaymentDto, PaymentMethod } from '@restaurante/shared-types';
 import { PrismaService } from '../../core/prisma/prisma.service';
@@ -19,13 +19,17 @@ export class PaymentsService {
    * Registra un pago (parcial o combinado). Recalcula el saldo y, si el pedido
    * queda totalmente pagado, lo cierra y libera la mesa.
    */
-  async register(orderId: string, dto: CreatePaymentDto, actorId: string): Promise<OrderDto> {
-    const order = await this.orders.findOne(orderId);
+  async register(
+    orderId: string,
+    dto: CreatePaymentDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const order = await this.orders.findOne(orderId, restaurantId);
     if (order.status !== OrderStatus.ABIERTA) {
       throw new BadRequestException('El pedido no está abierto.');
     }
 
-    // El saldo de referencia es el del grupo (si es un pago dividido) o el global.
     let referenceBalance = order.balance;
     if (dto.billGroupId) {
       const group = order.billGroups.find((g) => g.id === dto.billGroupId);
@@ -56,6 +60,7 @@ export class PaymentsService {
           action: 'PAYMENT_REGISTERED',
           entity: 'Payment',
           entityId: payment.id,
+          restaurantId,
           metadata: { orderId, method: dto.method, amount: dto.amount },
         },
         tx,
@@ -63,10 +68,17 @@ export class PaymentsService {
       await this.orders.closeIfFullyPaid(orderId, actorId, tx);
     });
 
-    return this.orders.findOne(orderId);
+    return this.orders.findOne(orderId, restaurantId);
   }
 
-  async listByOrder(orderId: string): Promise<PaymentDto[]> {
+  async listByOrder(orderId: string, restaurantId: string): Promise<PaymentDto[]> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Pedido no encontrado.');
+    }
     const payments = await this.prisma.payment.findMany({
       where: { orderId },
       include: { createdBy: { select: { name: true } } },

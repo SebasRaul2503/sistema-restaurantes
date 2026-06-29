@@ -16,7 +16,26 @@ ISO (`yyyy-mm-dd` o ISO datetime).
 |--------|------|--------|-------------|
 | POST | `/auth/login` | Público | Inicia sesión. Body `{ email, password }` → `{ accessToken, refreshToken, user }`. |
 | POST | `/auth/refresh` | Público | Renueva tokens. Body `{ refreshToken }`. |
-| GET  | `/auth/me` | Cualquiera | Usuario autenticado. |
+| GET  | `/auth/me` | Cualquiera | Usuario + locales disponibles + local activo. Respuesta: `{ user, restaurants, activeRestaurantId, isSuperAdmin }`. Si se envía el header `X-Restaurant-Id`, se incluye en `activeRestaurantId` (verificado). |
+
+## Mis locales — `/my-restaurants` (Cualquiera)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/my-restaurants` | Locales disponibles para el usuario. Si es superadmin (ADMIN sin membresías) devuelve todos; si no, solo donde tiene membresía activa. |
+
+## Locales — `/restaurants` (ADMIN, salvo los marcados)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/restaurants` | Listar **todos** los locales. |
+| POST | `/restaurants` | Crear `{ slug, name, address?, phone?, primaryColor?, secondaryColor?, logoUrl? }`. |
+| GET | `/restaurants/:id` | Obtener un local. |
+| PATCH | `/restaurants/:id` | Actualizar. Acepta `null` en campos de marca para limpiar el override. |
+| GET | `/restaurants/:id/members` | Listar miembros de un local. |
+| POST | `/restaurants/:id/members` | Agregar o reasignar `{ userId, role }`. |
+| PATCH | `/restaurants/:id/members/:memberId` | Cambiar rol/activo `{ role?, active? }`. |
+| GET | `/restaurants/:id/theme` | Marca efectiva del local (override o tenant). |
 
 ## Usuarios — `/users` (ADMIN)
 
@@ -39,9 +58,9 @@ ISO (`yyyy-mm-dd` o ISO datetime).
 
 | Método | Ruta | Acceso | Descripción |
 |--------|------|--------|-------------|
-| GET | `/tables` | Cualquiera | Listar mesas. |
-| GET | `/tables/:id` | Cualquiera | Obtener una mesa. |
-| POST | `/tables` | ADMIN | Crear `{ number, name?, capacity?, posX?, posY? }`. |
+| GET | `/tables` | Cualquiera | Listar mesas **del local activo** (header `X-Restaurant-Id`). |
+| GET | `/tables/:id` | Cualquiera | Obtener una mesa del local activo. |
+| POST | `/tables` | ADMIN | Crear `{ number, name?, capacity?, posX?, posY? }` en el local activo. |
 | PATCH | `/tables/:id` | ADMIN | Actualizar campos. |
 | PATCH | `/tables/:id/status` | Cualquiera | Cambiar estado `{ status }`. |
 | DELETE | `/tables/:id` | ADMIN | Desactivar (baja lógica). |
@@ -50,12 +69,12 @@ ISO (`yyyy-mm-dd` o ISO datetime).
 
 | Método | Ruta | Acceso | Descripción |
 |--------|------|--------|-------------|
-| GET | `/menu/categories` | Cualquiera | Listar categorías. |
-| POST | `/menu/categories` | ADMIN | Crear categoría. |
+| GET | `/menu/categories` | Cualquiera | Listar categorías del local activo. |
+| POST | `/menu/categories` | ADMIN | Crear categoría en el local activo. |
 | PATCH | `/menu/categories/:id` | ADMIN | Actualizar categoría. |
 | DELETE | `/menu/categories/:id` | ADMIN | Eliminar (bloqueada si es del sistema o tiene platos). |
-| GET | `/menu/dishes` | Cualquiera | Listar platos. Query: `categoryId?`, `active?`. |
-| GET | `/menu/dishes/:id` | Cualquiera | Obtener un plato. |
+| GET | `/menu/dishes` | Cualquiera | Listar platos del local activo. Query: `categoryId?`, `active?`. |
+| GET | `/menu/dishes/:id` | Cualquiera | Obtener un plato del local activo. |
 | POST | `/menu/dishes` | ADMIN | Crear `{ name, price, categoryId, description?, imageUrl? }`. |
 | PATCH | `/menu/dishes/:id` | ADMIN | Actualizar plato. |
 | DELETE | `/menu/dishes/:id` | ADMIN | Desactivar (preserva historial). |

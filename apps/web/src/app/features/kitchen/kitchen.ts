@@ -1,6 +1,7 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, signal, untracked } from '@angular/core';
 import { KitchenItemDto, OrderItemStatus } from '@restaurante/shared-types';
 import { KitchenApi } from '../../core/data/kitchen.api';
+import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
 import { NotificationService } from '../../core/services/notification.service';
 
 @Component({
@@ -12,6 +13,7 @@ import { NotificationService } from '../../core/services/notification.service';
 })
 export class KitchenPage implements OnInit, OnDestroy {
   private readonly kitchen = inject(KitchenApi);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
 
   readonly OrderItemStatus = OrderItemStatus;
@@ -30,8 +32,16 @@ export class KitchenPage implements OnInit, OnDestroy {
     this.items().filter((it) => it.status === OrderItemStatus.PREPARANDO),
   );
 
+  constructor() {
+    // Recarga cuando cambia el local activo (y al instanciarse, para la
+    // primera carga). El timer periódico sigue corriendo en paralelo.
+    effect(() => {
+      this.active.activeRestaurantId();
+      untracked(() => void this.refresh());
+    });
+  }
+
   ngOnInit(): void {
-    void this.refresh();
     this.refreshTimer = setInterval(() => {
       this.now.set(Date.now());
       void this.refresh();

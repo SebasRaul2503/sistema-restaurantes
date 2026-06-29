@@ -104,11 +104,12 @@
               <div class="row-actions">
                 <button class="btn btn-ghost btn-sm" (click)="startEdit(user)">Editar</button>
                 <button
-                  class="btn btn-danger btn-sm"
-                  [disabled]="!user.active"
-                  (click)="deactivate(user)"
+                  class="btn btn-sm"
+                  [class.btn-danger]="user.active"
+                  [class.btn-success]="!user.active"
+                  (click)="toggleActive(user)"
                 >
-                  Desactivar
+                  {{ user.active ? 'Desactivar' : 'Reactivar' }}
                 </button>
               </div>
             </td>

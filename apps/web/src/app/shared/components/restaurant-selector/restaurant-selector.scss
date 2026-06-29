@@ -1,0 +1,108 @@
+.restaurant-selector {
+  position: relative;
+  display: inline-block;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--line, #e2e8f0);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover { background: var(--surface-2, #f7fafc); }
+  &.open { background: var(--surface-2, #f7fafc); }
+
+  &.readonly { cursor: default; }
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--brand-primary-contrast, #fff);
+  background: var(--brand-primary, #E63946);
+  flex-shrink: 0;
+}
+
+.name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  padding: 0.4rem;
+  z-index: 50;
+}
+
+.menu-head {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.6rem 0.2rem;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover { background: var(--surface-2, #f1f5f9); }
+  &.active { background: color-mix(in srgb, var(--brand-primary) 12%, transparent); }
+
+  app-icon { color: var(--muted, #64748b); flex-shrink: 0; }
+}
+
+.menu-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-primary, #E63946);
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.menu-sep {
+  height: 1px;
+  background: var(--line, #e2e8f0);
+  margin: 0.3rem 0.2rem;
+}

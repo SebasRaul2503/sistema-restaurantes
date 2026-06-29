@@ -1,8 +1,9 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CashMovementType, CashSessionDto, CashSessionStatus } from '@restaurante/shared-types';
 import { CashApi } from '../../core/data/cash.api';
+import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
@@ -14,8 +15,9 @@ import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
   templateUrl: './cash.html',
   styleUrl: './cash.scss',
 })
-export class CashPage implements OnInit {
+export class CashPage {
   private readonly cash = inject(CashApi);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
 
   readonly movementTypes = CashMovementType;
@@ -44,8 +46,11 @@ export class CashPage implements OnInit {
   actualAmount: number | null = null;
   closeNotes = '';
 
-  ngOnInit(): void {
-    void this.reload();
+  constructor() {
+    effect(() => {
+      this.active.activeRestaurantId();
+      untracked(() => void this.reload());
+    });
   }
 
   async reload(): Promise<void> {

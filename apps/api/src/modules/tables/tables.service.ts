@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Table } from '@prisma/client';
 import { TableDto, TableStatus } from '@restaurante/shared-types';
 import { PrismaService } from '../../core/prisma/prisma.service';
@@ -15,27 +15,42 @@ export class TablesService {
     private readonly audit: AuditService,
   ) {}
 
-  async findAll(): Promise<TableDto[]> {
-    const tables = await this.prisma.table.findMany({ orderBy: { number: 'asc' } });
+  private ensureRestaurant(restaurantId: string): void {
+    if (!restaurantId) {
+      throw new BadRequestException('No se ha seleccionado un local activo.');
+    }
+  }
+
+  async findAll(restaurantId: string): Promise<TableDto[]> {
+    this.ensureRestaurant(restaurantId);
+    const tables = await this.prisma.table.findMany({
+      where: { restaurantId },
+      orderBy: { number: 'asc' },
+    });
     return tables.map((t) => this.toDto(t));
   }
 
-  async findOne(id: string): Promise<TableDto> {
-    const table = await this.prisma.table.findUnique({ where: { id } });
+  async findOne(id: string, restaurantId: string): Promise<TableDto> {
+    this.ensureRestaurant(restaurantId);
+    const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
     }
     return this.toDto(table);
   }
 
-  async create(dto: CreateTableDto, actorId: string): Promise<TableDto> {
-    const existing = await this.prisma.table.findUnique({ where: { number: dto.number } });
+  async create(dto: CreateTableDto, actorId: string, restaurantId: string): Promise<TableDto> {
+    this.ensureRestaurant(restaurantId);
+    const existing = await this.prisma.table.findUnique({
+      where: { restaurantId_number: { restaurantId, number: dto.number } },
+    });
     if (existing) {
-      throw new ConflictException('Ya existe una mesa con ese número.');
+      throw new ConflictException('Ya existe una mesa con ese número en este local.');
     }
 
     const table = await this.prisma.table.create({
       data: {
+        restaurantId,
         number: dto.number,
         name: dto.name ?? null,
         capacity: dto.capacity ?? DEFAULT_CAPACITY,
@@ -49,22 +64,31 @@ export class TablesService {
       action: 'TABLE_CREATED',
       entity: 'Table',
       entityId: table.id,
+      restaurantId,
       metadata: { number: table.number, capacity: table.capacity },
     });
 
     return this.toDto(table);
   }
 
-  async update(id: string, dto: UpdateTableDto, actorId: string): Promise<TableDto> {
-    const table = await this.prisma.table.findUnique({ where: { id } });
+  async update(
+    id: string,
+    dto: UpdateTableDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<TableDto> {
+    this.ensureRestaurant(restaurantId);
+    const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
     }
 
     if (dto.number !== undefined && dto.number !== table.number) {
-      const existing = await this.prisma.table.findUnique({ where: { number: dto.number } });
+      const existing = await this.prisma.table.findUnique({
+        where: { restaurantId_number: { restaurantId, number: dto.number } },
+      });
       if (existing) {
-        throw new ConflictException('Ya existe una mesa con ese número.');
+        throw new ConflictException('Ya existe una mesa con ese número en este local.');
       }
     }
 
@@ -83,14 +107,21 @@ export class TablesService {
       action: 'TABLE_UPDATED',
       entity: 'Table',
       entityId: id,
+      restaurantId,
       metadata: { changed: Object.keys(data) },
     });
 
     return this.toDto(updated);
   }
 
-  async changeStatus(id: string, status: TableStatus, actorId: string): Promise<TableDto> {
-    const table = await this.prisma.table.findUnique({ where: { id } });
+  async changeStatus(
+    id: string,
+    status: TableStatus,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<TableDto> {
+    this.ensureRestaurant(restaurantId);
+    const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
     }
@@ -102,14 +133,16 @@ export class TablesService {
       action: 'TABLE_STATUS_CHANGED',
       entity: 'Table',
       entityId: id,
+      restaurantId,
       metadata: { status },
     });
 
     return this.toDto(updated);
   }
 
-  async remove(id: string, actorId: string): Promise<TableDto> {
-    const table = await this.prisma.table.findUnique({ where: { id } });
+  async remove(id: string, actorId: string, restaurantId: string): Promise<TableDto> {
+    this.ensureRestaurant(restaurantId);
+    const table = await this.prisma.table.findFirst({ where: { id, restaurantId } });
     if (!table) {
       throw new NotFoundException('Mesa no encontrada.');
     }
@@ -121,6 +154,7 @@ export class TablesService {
       action: 'TABLE_DEACTIVATED',
       entity: 'Table',
       entityId: id,
+      restaurantId,
     });
 
     return this.toDto(updated);

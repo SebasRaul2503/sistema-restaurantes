@@ -1,9 +1,15 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RestaurantSettingsDto } from '@restaurante/shared-types';
+import {
+  RestaurantDto,
+  RestaurantSettingsDto,
+  UpdateRestaurantDto,
+} from '@restaurante/shared-types';
+import { RestaurantsApi } from '../../core/data/restaurants.api';
 import { SettingsApi } from '../../core/data/settings.api';
-import { ThemeService } from '../../core/services/theme.service';
+import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
 import { NotificationService } from '../../core/services/notification.service';
+import { ThemeService } from '../../core/services/theme.service';
 
 @Component({
   selector: 'app-settings',
@@ -12,31 +18,56 @@ import { NotificationService } from '../../core/services/notification.service';
   templateUrl: './settings.html',
   styleUrl: './settings.scss',
 })
-export class SettingsPage implements OnInit {
+export class SettingsPage {
   private readonly settingsApi = inject(SettingsApi);
+  private readonly restaurantsApi = inject(RestaurantsApi);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly theme = inject(ThemeService);
   private readonly notify = inject(NotificationService);
 
   readonly loading = signal(true);
   readonly saving = signal(false);
 
+  // --- Datos del negocio (tenant) ---
   readonly name = signal('');
   readonly address = signal('');
   readonly phone = signal('');
   readonly businessInfo = signal('');
+
+  // --- Marca y datos del local activo (override) ---
+  readonly localName = signal('');
+  readonly localAddress = signal('');
+  readonly localPhone = signal('');
   readonly primaryColor = signal('#e63946');
   readonly secondaryColor = signal('#1d3557');
   readonly logoUrl = signal<string | null>(null);
 
-  ngOnInit(): void {
-    void this.load();
+  /** Restaurante activo (para saber a qué local se aplica la marca). */
+  readonly activeRestaurant = this.active.activeRestaurant;
+  readonly activeRestaurantId = this.active.activeRestaurantId;
+
+  /** true si el local activo tiene override propio (no hereda del tenant). */
+  readonly hasLocalBrand = signal(false);
+
+  constructor() {
+    // Recarga al cambiar de local (y al instanciar el componente).
+    effect(() => {
+      this.active.activeRestaurantId();
+      untracked(() => void this.load());
+    });
   }
 
   async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const settings = await this.settingsApi.get();
-      this.populate(settings);
+      const restaurantId = this.active.activeRestaurantId();
+      const [tenant, local] = await Promise.all([
+        this.settingsApi.get(),
+        restaurantId
+          ? this.restaurantsApi.getOne(restaurantId).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      untracked(() => this.populate(tenant, local));
     } catch {
       // Si falla, se mantienen los valores por defecto.
     } finally {
@@ -44,14 +75,34 @@ export class SettingsPage implements OnInit {
     }
   }
 
-  private populate(settings: RestaurantSettingsDto): void {
-    this.name.set(settings.name);
-    this.address.set(settings.address ?? '');
-    this.phone.set(settings.phone ?? '');
-    this.businessInfo.set(settings.businessInfo ?? '');
-    this.primaryColor.set(settings.primaryColor);
-    this.secondaryColor.set(settings.secondaryColor);
-    this.logoUrl.set(settings.logoUrl);
+  private populate(tenant: RestaurantSettingsDto, local: RestaurantDto | null): void {
+    // Tenant
+    this.name.set(tenant.name);
+    this.address.set(tenant.address ?? '');
+    this.phone.set(tenant.phone ?? '');
+    this.businessInfo.set(tenant.businessInfo ?? '');
+
+    // Local (puede ser null si el usuario no tiene local activo)
+    if (local) {
+      this.localName.set(local.name);
+      this.localAddress.set(local.address ?? '');
+      this.localPhone.set(local.phone ?? '');
+      // Los override del local: si son null, mostramos los del tenant como fallback visual
+      this.primaryColor.set(local.primaryColor ?? tenant.primaryColor);
+      this.secondaryColor.set(local.secondaryColor ?? tenant.secondaryColor);
+      this.logoUrl.set(local.logoUrl ?? tenant.logoUrl ?? null);
+      this.hasLocalBrand.set(
+        local.primaryColor !== null ||
+          local.secondaryColor !== null ||
+          local.logoUrl !== null,
+      );
+    } else {
+      // Sin local activo: mostramos la marca del tenant
+      this.primaryColor.set(tenant.primaryColor);
+      this.secondaryColor.set(tenant.secondaryColor);
+      this.logoUrl.set(tenant.logoUrl ?? null);
+      this.hasLocalBrand.set(false);
+    }
   }
 
   onLogoSelected(event: Event): void {
@@ -67,21 +118,50 @@ export class SettingsPage implements OnInit {
     this.logoUrl.set(null);
   }
 
+  /** Suelta el override del local y hereda del tenant. */
+  inheritFromTenant(): void {
+    this.hasLocalBrand.set(false);
+    // Se guarda como null en el local → el backend usa el del tenant
+    void this.save();
+  }
+
   async save(): Promise<void> {
     if (!this.name().trim()) return;
     this.saving.set(true);
     try {
-      const result = await this.settingsApi.update({
+      // 1) Datos del negocio (tenant): solo los campos del tenant
+      const tenant = await this.settingsApi.update({
         name: this.name().trim(),
         address: this.address(),
         phone: this.phone(),
         businessInfo: this.businessInfo(),
-        primaryColor: this.primaryColor(),
-        secondaryColor: this.secondaryColor(),
-        logoUrl: this.logoUrl() ?? '',
       });
-      this.theme.apply(result);
+      this.theme.apply(tenant);
+
+      // 2) Datos y marca del local activo
+      const restaurantId = this.active.activeRestaurantId();
+      if (restaurantId) {
+        const localPayload: UpdateRestaurantDto = {
+          name: this.localName().trim() || undefined,
+          address: this.localAddress(),
+          phone: this.localPhone(),
+          primaryColor: this.primaryColor(),
+          secondaryColor: this.secondaryColor(),
+          logoUrl: this.logoUrl(),
+        };
+        const updatedLocal = await this.restaurantsApi.update(restaurantId, localPayload);
+        this.hasLocalBrand.set(
+          updatedLocal.primaryColor !== null ||
+            updatedLocal.secondaryColor !== null ||
+            updatedLocal.logoUrl !== null,
+        );
+      }
+
       this.notify.success('Configuración guardada');
+      // Refresca la marca efectiva del theme
+      if (restaurantId) {
+        void this.theme.loadRestaurantTheme(restaurantId);
+      }
     } catch {
       // El error se notifica de forma global.
     } finally {

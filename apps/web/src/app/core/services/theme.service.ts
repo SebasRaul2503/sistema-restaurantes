@@ -1,36 +1,74 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { effect, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { RestaurantSettingsDto } from '@restaurante/shared-types';
+import { RestaurantThemeDto, RestaurantSettingsDto } from '@restaurante/shared-types';
+import { ActiveRestaurantService } from './active-restaurant.service';
 import { ApiService } from './api.service';
 
 /**
- * Aplica la marca del restaurante (colores) a las variables CSS globales, de
- * modo que todo el tema se adapte automáticamente a la configuración.
+ * Aplica la marca del restaurante (colores) a las variables CSS globales. Si
+ * hay un local activo con override, usa ese; en caso contrario, usa la marca
+ * del tenant (RestaurantSettings).
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly api = inject(ApiService);
-  readonly settings = signal<RestaurantSettingsDto | null>(null);
+  private readonly activeRestaurant = inject(ActiveRestaurantService);
 
-  async load(): Promise<void> {
+  readonly settings = signal<RestaurantSettingsDto | null>(null);
+  readonly theme = signal<RestaurantThemeDto | null>(null);
+
+  constructor() {
+    effect(() => {
+      const id = this.activeRestaurant.activeRestaurantId();
+      if (id) {
+        void this.loadRestaurantTheme(id);
+      } else {
+        void this.loadTenant();
+      }
+    });
+  }
+
+  /** Carga la marca del tenant (fallback). Llamado si no hay local activo. */
+  async loadTenant(): Promise<void> {
     try {
       const settings = await firstValueFrom(this.api.get<RestaurantSettingsDto>('/settings'));
-      this.apply(settings);
+      this.settings.set(settings);
+      this.apply({
+        name: settings.name,
+        logoUrl: settings.logoUrl,
+        primaryColor: settings.primaryColor,
+        secondaryColor: settings.secondaryColor,
+      });
     } catch {
       // Si falla, se mantienen los colores por defecto.
     }
   }
 
-  apply(settings: RestaurantSettingsDto): void {
-    this.settings.set(settings);
-    const root = document.documentElement;
-    root.style.setProperty('--brand-primary', settings.primaryColor);
-    root.style.setProperty('--brand-secondary', settings.secondaryColor);
-    root.style.setProperty('--brand-primary-contrast', this.contrastColor(settings.primaryColor));
-    document.title = `${settings.name} · Gestión`;
+  /** Carga la marca efectiva del local activo. */
+  async loadRestaurantTheme(restaurantId: string): Promise<void> {
+    try {
+      const theme = await firstValueFrom(
+        this.api.get<RestaurantThemeDto>(`/restaurants/${restaurantId}/theme`),
+      );
+      this.theme.set(theme);
+      this.apply(theme);
+    } catch {
+      void this.loadTenant();
+    }
   }
 
-  /** Elige texto blanco o negro según la luminancia del color de marca. */
+  /**
+   * Aplica una marca al documento. Público para que la pantalla de Configuración
+   * pueda refrescar el tema tras guardar.
+   */
+  apply(theme: RestaurantThemeDto): void {
+    const root = document.documentElement;
+    root.style.setProperty('--brand-primary', theme.primaryColor);
+    root.style.setProperty('--brand-secondary', theme.secondaryColor);
+    root.style.setProperty('--brand-primary-contrast', this.contrastColor(theme.primaryColor));
+    document.title = `${theme.name} · Gestión`;
+  }
+
   private contrastColor(hex: string): string {
     const c = hex.replace('#', '');
     if (c.length !== 6) return '#ffffff';

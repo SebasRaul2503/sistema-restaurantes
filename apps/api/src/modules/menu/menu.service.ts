@@ -17,6 +17,7 @@ import { UpdateDishDto } from './dto/update-dish.dto';
 type DishWithCategory = Dish & { category?: MenuCategory | null };
 
 interface DishFilter {
+  restaurantId: string;
   categoryId?: string;
   active?: boolean;
 }
@@ -28,12 +29,20 @@ export class MenuService {
     private readonly audit: AuditService,
   ) {}
 
+  private ensureRestaurant(restaurantId: string): void {
+    if (!restaurantId) {
+      throw new BadRequestException('No se ha seleccionado un local activo.');
+    }
+  }
+
   // ----------------------------------------------------------------------
   // Categorías
   // ----------------------------------------------------------------------
 
-  async listCategories(): Promise<MenuCategoryDto[]> {
+  async listCategories(restaurantId: string): Promise<MenuCategoryDto[]> {
+    this.ensureRestaurant(restaurantId);
     const categories = await this.prisma.menuCategory.findMany({
+      where: { restaurantId },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
     return categories.map((c) => this.toCategoryDto(c));
@@ -42,16 +51,19 @@ export class MenuService {
   async createCategory(
     dto: CreateCategoryDto,
     actorId: string,
+    restaurantId: string,
   ): Promise<MenuCategoryDto> {
+    this.ensureRestaurant(restaurantId);
     const existing = await this.prisma.menuCategory.findUnique({
-      where: { name: dto.name },
+      where: { restaurantId_name: { restaurantId, name: dto.name } },
     });
     if (existing) {
-      throw new ConflictException('Ya existe una categoría con ese nombre.');
+      throw new ConflictException('Ya existe una categoría con ese nombre en este local.');
     }
 
     const category = await this.prisma.menuCategory.create({
       data: {
+        restaurantId,
         name: dto.name,
         sortOrder: dto.sortOrder ?? 0,
       },
@@ -62,6 +74,7 @@ export class MenuService {
       action: 'CATEGORY_CREATED',
       entity: 'MenuCategory',
       entityId: category.id,
+      restaurantId,
       metadata: { name: category.name },
     });
 
@@ -72,18 +85,20 @@ export class MenuService {
     id: string,
     dto: UpdateCategoryDto,
     actorId: string,
+    restaurantId: string,
   ): Promise<MenuCategoryDto> {
-    const category = await this.prisma.menuCategory.findUnique({ where: { id } });
+    this.ensureRestaurant(restaurantId);
+    const category = await this.prisma.menuCategory.findFirst({ where: { id, restaurantId } });
     if (!category) {
       throw new NotFoundException('Categoría no encontrada.');
     }
 
     if (dto.name !== undefined && dto.name !== category.name) {
       const duplicate = await this.prisma.menuCategory.findUnique({
-        where: { name: dto.name },
+        where: { restaurantId_name: { restaurantId, name: dto.name } },
       });
       if (duplicate) {
-        throw new ConflictException('Ya existe una categoría con ese nombre.');
+        throw new ConflictException('Ya existe una categoría con ese nombre en este local.');
       }
     }
 
@@ -99,25 +114,27 @@ export class MenuService {
       action: 'CATEGORY_UPDATED',
       entity: 'MenuCategory',
       entityId: id,
+      restaurantId,
       metadata: { changed: Object.keys(data) },
     });
 
     return this.toCategoryDto(updated);
   }
 
-  async deleteCategory(id: string, actorId: string): Promise<void> {
-    const category = await this.prisma.menuCategory.findUnique({ where: { id } });
+  async deleteCategory(id: string, actorId: string, restaurantId: string): Promise<void> {
+    this.ensureRestaurant(restaurantId);
+    const category = await this.prisma.menuCategory.findFirst({ where: { id, restaurantId } });
     if (!category) {
       throw new NotFoundException('Categoría no encontrada.');
     }
 
     if (category.isSystem) {
-      throw new BadRequestException(
-        'No se puede eliminar una categoría del sistema.',
-      );
+      throw new BadRequestException('No se puede eliminar una categoría del sistema.');
     }
 
-    const dishCount = await this.prisma.dish.count({ where: { categoryId: id } });
+    const dishCount = await this.prisma.dish.count({
+      where: { categoryId: id, restaurantId },
+    });
     if (dishCount > 0) {
       throw new BadRequestException(
         'No se puede eliminar una categoría con platos. Reasigne o desactive los platos primero.',
@@ -131,6 +148,7 @@ export class MenuService {
       action: 'CATEGORY_DELETED',
       entity: 'MenuCategory',
       entityId: id,
+      restaurantId,
       metadata: { name: category.name },
     });
   }
@@ -140,7 +158,8 @@ export class MenuService {
   // ----------------------------------------------------------------------
 
   async listDishes(filter: DishFilter): Promise<DishDto[]> {
-    const where: Prisma.DishWhereInput = {};
+    this.ensureRestaurant(filter.restaurantId);
+    const where: Prisma.DishWhereInput = { restaurantId: filter.restaurantId };
     if (filter.categoryId !== undefined) where.categoryId = filter.categoryId;
     if (filter.active !== undefined) where.active = filter.active;
 
@@ -152,9 +171,10 @@ export class MenuService {
     return dishes.map((d) => this.toDishDto(d));
   }
 
-  async getDish(id: string): Promise<DishDto> {
-    const dish = await this.prisma.dish.findUnique({
-      where: { id },
+  async getDish(id: string, restaurantId: string): Promise<DishDto> {
+    this.ensureRestaurant(restaurantId);
+    const dish = await this.prisma.dish.findFirst({
+      where: { id, restaurantId },
       include: { category: true },
     });
     if (!dish) {
@@ -163,9 +183,14 @@ export class MenuService {
     return this.toDishDto(dish);
   }
 
-  async createDish(dto: CreateDishDto, actorId: string): Promise<DishDto> {
-    const category = await this.prisma.menuCategory.findUnique({
-      where: { id: dto.categoryId },
+  async createDish(
+    dto: CreateDishDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<DishDto> {
+    this.ensureRestaurant(restaurantId);
+    const category = await this.prisma.menuCategory.findFirst({
+      where: { id: dto.categoryId, restaurantId },
     });
     if (!category) {
       throw new NotFoundException('Categoría no encontrada.');
@@ -173,6 +198,7 @@ export class MenuService {
 
     const dish = await this.prisma.dish.create({
       data: {
+        restaurantId,
         name: dto.name,
         description: dto.description ?? null,
         price: new Prisma.Decimal(dto.price),
@@ -187,6 +213,7 @@ export class MenuService {
       action: 'DISH_CREATED',
       entity: 'Dish',
       entityId: dish.id,
+      restaurantId,
       metadata: { name: dish.name, price: toNumber(dish.price) },
     });
 
@@ -197,15 +224,17 @@ export class MenuService {
     id: string,
     dto: UpdateDishDto,
     actorId: string,
+    restaurantId: string,
   ): Promise<DishDto> {
-    const dish = await this.prisma.dish.findUnique({ where: { id } });
+    this.ensureRestaurant(restaurantId);
+    const dish = await this.prisma.dish.findFirst({ where: { id, restaurantId } });
     if (!dish) {
       throw new NotFoundException('Plato no encontrado.');
     }
 
     if (dto.categoryId !== undefined) {
-      const category = await this.prisma.menuCategory.findUnique({
-        where: { id: dto.categoryId },
+      const category = await this.prisma.menuCategory.findFirst({
+        where: { id: dto.categoryId, restaurantId },
       });
       if (!category) {
         throw new NotFoundException('Categoría no encontrada.');
@@ -233,14 +262,16 @@ export class MenuService {
       action: 'DISH_UPDATED',
       entity: 'Dish',
       entityId: id,
+      restaurantId,
       metadata: { changed: Object.keys(data) },
     });
 
     return this.toDishDto(updated);
   }
 
-  async deleteDish(id: string, actorId: string): Promise<DishDto> {
-    const dish = await this.prisma.dish.findUnique({ where: { id } });
+  async deleteDish(id: string, actorId: string, restaurantId: string): Promise<DishDto> {
+    this.ensureRestaurant(restaurantId);
+    const dish = await this.prisma.dish.findFirst({ where: { id, restaurantId } });
     if (!dish) {
       throw new NotFoundException('Plato no encontrado.');
     }
@@ -258,6 +289,7 @@ export class MenuService {
       action: 'DISH_DEACTIVATED',
       entity: 'Dish',
       entityId: id,
+      restaurantId,
     });
 
     return this.toDishDto(updated);

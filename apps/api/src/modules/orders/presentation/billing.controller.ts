@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OrderDto } from '@restaurante/shared-types';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { CurrentRestaurant } from '../../../common/decorators/current-restaurant.decorator';
 import { BillingService } from '../application/billing.service';
 import { CreateBillGroupDto } from './dto/create-bill-group.dto';
 import { SplitEvenDto } from './dto/split-even.dto';
@@ -21,8 +22,9 @@ export class BillingController {
     @Param('id') id: string,
     @Body() dto: SplitEvenDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<OrderDto> {
-    return this.billing.splitEven(id, dto, actorId);
+    return this.billing.splitEven(id, dto, actorId, restaurantId);
   }
 
   @Post('orders/:id/split/items')
@@ -31,8 +33,9 @@ export class BillingController {
     @Param('id') id: string,
     @Body() dto: SplitItemsDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<OrderDto> {
-    return this.billing.splitByItems(id, dto, actorId);
+    return this.billing.splitByItems(id, dto, actorId, restaurantId);
   }
 
   @Post('orders/:id/bill-groups')
@@ -41,14 +44,19 @@ export class BillingController {
     @Param('id') id: string,
     @Body() dto: CreateBillGroupDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<OrderDto> {
-    return this.billing.createGroup(id, dto, actorId);
+    return this.billing.createGroup(id, dto, actorId, restaurantId);
   }
 
   @Delete('orders/:id/split')
   @ApiOperation({ summary: 'Quitar la división de cuenta' })
-  clearSplit(@Param('id') id: string, @CurrentUser('id') actorId: string): Promise<OrderDto> {
-    return this.billing.clearSplit(id, actorId);
+  clearSplit(
+    @Param('id') id: string,
+    @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<OrderDto> {
+    return this.billing.clearSplit(id, actorId, restaurantId);
   }
 
   @Post('bill-groups/:groupId/items')
@@ -57,8 +65,9 @@ export class BillingController {
     @Param('groupId') groupId: string,
     @Body() dto: AddGroupItemDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<OrderDto> {
-    return this.billing.addItemToGroup(groupId, dto, actorId);
+    return this.billing.addItemToGroup(groupId, dto, actorId, restaurantId);
   }
 
   @Delete('bill-group-items/:groupItemId')
@@ -66,13 +75,18 @@ export class BillingController {
   removeGroupItem(
     @Param('groupItemId') groupItemId: string,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<OrderDto> {
-    return this.billing.removeGroupItem(groupItemId, actorId);
+    return this.billing.removeGroupItem(groupItemId, actorId, restaurantId);
   }
 
   @Delete('bill-groups/:groupId')
   @ApiOperation({ summary: 'Eliminar un grupo de cuenta' })
-  deleteGroup(@Param('groupId') groupId: string, @CurrentUser('id') actorId: string): Promise<OrderDto> {
-    return this.billing.deleteGroup(groupId, actorId);
+  deleteGroup(
+    @Param('groupId') groupId: string,
+    @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<OrderDto> {
+    return this.billing.deleteGroup(groupId, actorId, restaurantId);
   }
 }
