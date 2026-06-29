@@ -146,21 +146,21 @@
         <div class="add-member">
           <select
             class="select"
-            [value]="newMemberUserId()"
-            (change)="setNewMemberUser(asSelectValue($event))"
+            [ngModel]="newMemberUserId()"
+            (ngModelChange)="newMemberUserId.set($event)"
           >
-            <option value="">Seleccione un usuario…</option>
+            <option [ngValue]="''">Seleccione un usuario…</option>
             @for (u of availableUsers(); track u.id) {
-              <option [value]="u.id">{{ u.name }} · {{ u.email }}</option>
+              <option [ngValue]="u.id">{{ u.name }} · {{ u.email }}</option>
             }
           </select>
           <select
             class="select"
-            [value]="newMemberRole()"
-            (change)="setNewMemberRole(asRoleValue($event))"
+            [ngModel]="newMemberRole()"
+            (ngModelChange)="newMemberRole.set($event)"
           >
-            <option [value]="UserRole.ADMIN">Administrador</option>
-            <option [value]="UserRole.OPERATOR">Operador</option>
+            <option [ngValue]="UserRole.ADMIN">Administrador</option>
+            <option [ngValue]="UserRole.OPERATOR">Operador</option>
           </select>
           <button class="btn btn-primary" (click)="addMember()">Agregar</button>
         </div>
@@ -195,11 +195,11 @@
                     <td>
                       <select
                         class="select compact"
-                        [value]="m.role"
-                        (change)="changeMemberRole(m, asRoleValue($event))"
+                        [ngModel]="m.role"
+                        (ngModelChange)="changeMemberRole(m, $event)"
                       >
-                        <option [value]="UserRole.ADMIN">Administrador</option>
-                        <option [value]="UserRole.OPERATOR">Operador</option>
+                        <option [ngValue]="UserRole.ADMIN">Administrador</option>
+                        <option [ngValue]="UserRole.OPERATOR">Operador</option>
                       </select>
                     </td>
                     <td>
