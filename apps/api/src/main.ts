@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
@@ -14,6 +15,9 @@ async function bootstrap(): Promise<void> {
     origin: config.get<string>('corsOrigin'),
     credentials: true,
   });
+
+  // Cookie parser para leer la cookie de refresh en /auth/refresh.
+  app.use(cookieParser());
 
   // Validación global: descarta propiedades no declaradas (whitelist) y
   // transforma payloads a instancias de DTO. Mensajes en español por DTO.
