@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@restaurante/shared-types';
 import { OrdersApi } from '../../../core/data/orders.api';
 import { MenuApi } from '../../../core/data/menu.api';
+import { ActiveRestaurantService } from '../../../core/services/active-restaurant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SolesPipe } from '../../../shared/pipes/soles.pipe';
 import { EnumLabelPipe } from '../../../shared/pipes/enum-label.pipe';
@@ -27,11 +28,12 @@ interface PaymentMethodOption {
   templateUrl: './order-detail.html',
   styleUrl: './order-detail.scss',
 })
-export class OrderDetailPage implements OnInit {
+export class OrderDetailPage {
   private readonly ordersApi = inject(OrdersApi);
   private readonly menuApi = inject(MenuApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
 
   readonly OrderStatus = OrderStatus;
@@ -74,9 +76,12 @@ export class OrderDetailPage implements OnInit {
 
   readonly activeItems = computed(() => this.order()?.items.filter((i) => !i.isModified) ?? []);
 
-  ngOnInit(): void {
+  constructor() {
     this.orderId = this.route.snapshot.paramMap.get('orderId') ?? '';
-    void this.load();
+    effect(() => {
+      this.active.activeRestaurantId();
+      void this.load();
+    });
   }
 
   back(): void {

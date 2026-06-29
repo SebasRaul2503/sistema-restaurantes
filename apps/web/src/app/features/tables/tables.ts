@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -9,6 +9,7 @@ import {
 import { TablesApi } from '../../core/data/tables.api';
 import { OrdersApi } from '../../core/data/orders.api';
 import { AuthService } from '../../core/services/auth.service';
+import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
@@ -35,10 +36,11 @@ interface EditTableForm {
   templateUrl: './tables.html',
   styleUrl: './tables.scss',
 })
-export class TablesPage implements OnInit {
+export class TablesPage {
   private readonly tablesApi = inject(TablesApi);
   private readonly ordersApi = inject(OrdersApi);
   private readonly auth = inject(AuthService);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
   private readonly router = inject(Router);
 
@@ -85,8 +87,11 @@ export class TablesPage implements OnInit {
 
   readonly TableStatus = TableStatus;
 
-  ngOnInit(): void {
-    void this.refresh();
+  constructor() {
+    effect(() => {
+      this.active.activeRestaurantId();
+      void this.refresh();
+    });
   }
 
   async refresh(): Promise<void> {

@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   RevenueByMethodDto,
@@ -7,6 +7,7 @@ import {
   TopTableDto,
 } from '@restaurante/shared-types';
 import { ReportsApi } from '../../core/data/reports.api';
+import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
 import { DateField } from '../../shared/components/date-field/date-field';
@@ -20,8 +21,9 @@ type RevenuePeriod = 'daily' | 'weekly' | 'monthly';
   templateUrl: './reports.html',
   styleUrl: './reports.scss',
 })
-export class ReportsPage implements OnInit {
+export class ReportsPage {
   private readonly reports = inject(ReportsApi);
+  private readonly active = inject(ActiveRestaurantService);
 
   readonly from = signal('');
   readonly to = signal('');
@@ -47,8 +49,11 @@ export class ReportsPage implements OnInit {
     this.payments().reduce((max, p) => Math.max(max, p.total), 0),
   );
 
-  ngOnInit(): void {
-    void this.refresh();
+  constructor() {
+    effect(() => {
+      this.active.activeRestaurantId();
+      void this.refresh();
+    });
   }
 
   pct(value: number, max: number): number {
