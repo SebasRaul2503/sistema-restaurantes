@@ -43,16 +43,15 @@ export class AuthService {
 
   /**
    * Intenta refrescar la sesión usando la cookie httpOnly. Si tiene éxito,
-   * actualiza el access token y la info del usuario. Si falla, limpia la
-   * sesión.
+   * actualiza el access token y la info del usuario (ambos vienen en la
+   * respuesta). Si falla, limpia la sesión.
    */
   async refresh(): Promise<boolean> {
     try {
       const res = await firstValueFrom(
         this.api.post<LoginResponse>('/auth/refresh', {}),
       );
-      this.setAccessToken(res.accessToken);
-      if (res.user) this.user.set(res.user);
+      this.setSession(res.accessToken, res.user);
       return true;
     } catch {
       this.clearSession();
@@ -102,10 +101,6 @@ export class AuthService {
   private setSession(accessToken: string, user: AuthUser): void {
     this._accessToken.set(accessToken);
     this.user.set(user);
-  }
-
-  private setAccessToken(token: string): void {
-    this._accessToken.set(token);
   }
 
   private clearSession(): void {

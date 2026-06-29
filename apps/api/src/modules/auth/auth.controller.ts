@@ -61,14 +61,14 @@ export class AuthController {
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ accessToken: string }> {
+  ): Promise<LoginResponse> {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE_NAME];
     if (!token) {
       throw new UnauthorizedException('No hay sesión activa.');
     }
     const result = await this.authService.refresh(token);
     setRefreshCookie(req, res, this.configService, result.refreshToken);
-    return { accessToken: result.accessToken };
+    return { accessToken: result.accessToken, user: result.user };
   }
 
   @Post('logout')

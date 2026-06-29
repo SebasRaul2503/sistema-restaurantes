@@ -20,11 +20,6 @@ interface LoginResult {
   user: { id: string; email: string; name: string; role: UserRole };
 }
 
-interface RefreshResult {
-  accessToken: string;
-  refreshToken: string;
-}
-
 @Injectable()
 export class AuthService {
   constructor(
@@ -69,8 +64,11 @@ export class AuthService {
    * Renueva el access token rotando el refresh: el jti anterior se marca
    * como revocado y se emite uno nuevo. Si el jti no existe, está revocado
    * o expiró, se rechaza.
+   *
+   * Devuelve `LoginResponse` (accessToken + user) para que el cliente pueda
+   * rehidratar la sesión completa en un solo request tras la rotación.
    */
-  async refresh(refreshTokenJwt: string): Promise<RefreshResult> {
+  async refresh(refreshTokenJwt: string): Promise<LoginResult> {
     let payload: RefreshJwtPayload;
     try {
       payload = await this.jwt.verifyAsync<RefreshJwtPayload>(refreshTokenJwt, {
@@ -101,7 +99,11 @@ export class AuthService {
       data: { replacedById: stored.jti },
     });
 
-    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+    };
   }
 
   /**
