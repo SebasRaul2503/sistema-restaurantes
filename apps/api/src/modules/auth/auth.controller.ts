@@ -41,11 +41,12 @@ export class AuthController {
   })
   async login(
     @Body() dto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponse> {
     const result = await this.authService.login(dto.email, dto.password);
     if (result.refreshToken) {
-      setRefreshCookie(res, this.configService, result.refreshToken);
+      setRefreshCookie(req, res, this.configService, result.refreshToken);
     }
     return result;
   }
@@ -66,7 +67,7 @@ export class AuthController {
       throw new UnauthorizedException('No hay sesión activa.');
     }
     const result = await this.authService.refresh(token);
-    setRefreshCookie(res, this.configService, result.refreshToken);
+    setRefreshCookie(req, res, this.configService, result.refreshToken);
     return { accessToken: result.accessToken };
   }
 
@@ -84,7 +85,7 @@ export class AuthController {
   ): Promise<void> {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE_NAME];
     await this.authService.logout(user.id, token);
-    clearRefreshCookie(res, this.configService);
+    clearRefreshCookie(req, res, this.configService);
   }
 
   @Get('me')
