@@ -23,16 +23,31 @@ con salvaguardas técnicas razonables para pequeñas y medianas empresas.
 - **Contraseñas cifradas** con `bcrypt` (factor de costo 12). Nunca se almacenan
   ni se devuelven en claro; el campo `passwordHash` jamás se serializa en las
   respuestas.
-- **Autenticación segura** mediante JWT de acceso de vida corta (15 min) + token
-  de refresco; los secretos se configuran por entorno (`.env`).
+- **Autenticación con dos tokens y cookie httpOnly**:
+  - **Access token** (vida corta, 15 min): viaja en memoria del cliente (signal
+    en `AuthService`) y se envía en cada request vía `Authorization: Bearer …`.
+    Se pierde al cerrar la pestaña.
+  - **Refresh token** (vida larga, 7 días): vive en una **cookie httpOnly** que
+    el JavaScript del cliente **no puede leer**. La cookie tiene `Path=/api/auth`
+    (alcance limitado), `SameSite=Strict` en producción y `Secure` en producción.
+  - **Rotación por jti**: cada `POST /api/auth/refresh` emite un refresh nuevo
+    y revoca el anterior en la tabla `refresh_tokens`. Un refresh filtrado
+    queda anulado en cuanto se use.
+  - **Logout total**: `POST /api/auth/logout` revoca el refresh presentado y
+    limpia la cookie. Responde 204.
+  - Los secretos JWT se configuran por entorno (`.env`).
+- **Nada en `localStorage` / `sessionStorage`**: tokens, user y `me` viven
+  exclusivamente en memoria del navegador. XSS no puede exfiltrar credenciales
+  de sesión. Al recargar la pestaña, el frontend intenta rehidratar la sesión
+  con la cookie (login silencioso si la cookie sigue viva, redirect a
+  `/ingresar` si no).
 - **Control de acceso por roles (RBAC)**: el rol *Operador* solo accede a la
   operación diaria; las funciones sensibles (usuarios, reportes, configuración)
   quedan restringidas al *Administrador*.
 - **Validación de entrada** estricta en todos los endpoints (`class-validator`)
   con *whitelist* que descarta campos no declarados, mitigando inyección de datos.
-- **Manejo seguro de sesión**: el cliente almacena los tokens y los envía por
-  cabecera `Authorization`; ante expiración se renueva o se cierra la sesión.
-- **CORS** restringido al origen de la aplicación web.
+- **CORS** restringido al origen de la aplicación web, con `credentials: true`
+  para permitir el envío de la cookie httpOnly.
 
 ## 3. Principio de calidad y trazabilidad
 

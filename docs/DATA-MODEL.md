@@ -73,7 +73,19 @@ local elegido en el `RestaurantSelector` del topbar.
 Personal del sistema. `passwordHash` (bcrypt, costo 12) nunca se serializa.
 Campos: `email` (único), `name`, `role` (rol **global**; el rol por local vive
 en `RestaurantMember.role`), `active`. Relaciones inversas: pedidos abiertos,
-pagos, sesiones/movimientos de caja, auditoría, membresías.
+pagos, sesiones/movimientos de caja, auditoría, membresías, **refresh tokens**.
+
+### RefreshToken
+Tokens de refresh activos. Cada `POST /auth/refresh` crea uno nuevo y revoca
+el anterior (rotación por uso). Permite detectar y anular cualquier refresh
+filtrado en cuanto se use. Vive solo en la cookie httpOnly del cliente (no
+en el body ni en el JS).
+- `jti` (string, único) — claim `jti` del JWT del refresh.
+- `userId` (FK a `users`, cascade on delete).
+- `expiresAt` (DateTime) — alineado con `JWT_REFRESH_EXPIRES_IN` (7d).
+- `revokedAt` (DateTime, nullable) — si está set, el token está revocado.
+- `replacedById` (string, nullable) — jti del refresh que lo sustituyó (trazabilidad).
+- `createdAt` (DateTime).
 
 ### RestaurantSettings
 Fila única del tenant: `name`, `logoUrl`, `primaryColor`, `secondaryColor`,
