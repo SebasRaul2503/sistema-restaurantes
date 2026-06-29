@@ -1,0 +1,229 @@
+<div class="page-head">
+  <h1>Locales</h1>
+  <div class="actions">
+    <button class="btn btn-primary" (click)="toggleCreate()">
+      <app-icon name="plus" [size]="16" />
+      <span>Nuevo local</span>
+    </button>
+  </div>
+</div>
+
+@if (showCreate()) {
+  <div class="card card-pad create-form">
+    <h2>Crear local</h2>
+    <p class="muted">El slug es el identificador URL-safe (ej. "miraflores").</p>
+    <div class="form-grid">
+      <label class="field">
+        <span>Slug *</span>
+        <input
+          class="input"
+          [value]="newRestaurant().slug"
+          (input)="setNewSlug(asInputValue($event))"
+          placeholder="miraflores"
+        />
+      </label>
+      <label class="field">
+        <span>Nombre *</span>
+        <input
+          class="input"
+          [value]="newRestaurant().name"
+          (input)="setNewName(asInputValue($event))"
+          placeholder="Ceviche House — Miraflores"
+        />
+      </label>
+      <label class="field">
+        <span>Dirección</span>
+        <input
+          class="input"
+          [value]="newRestaurant().address"
+          (input)="setNewAddress(asInputValue($event))"
+        />
+      </label>
+      <label class="field">
+        <span>Teléfono</span>
+        <input
+          class="input"
+          [value]="newRestaurant().phone"
+          (input)="setNewPhone(asInputValue($event))"
+        />
+      </label>
+      <label class="field">
+        <span>Color primario (opcional)</span>
+        <input
+          class="input"
+          type="color"
+          [value]="newRestaurant().primaryColor || '#E63946'"
+          (input)="setNewPrimary(asInputValue($event))"
+        />
+      </label>
+      <label class="field">
+        <span>Color secundario (opcional)</span>
+        <input
+          class="input"
+          type="color"
+          [value]="newRestaurant().secondaryColor || '#1D3557'"
+          (input)="setNewSecondary(asInputValue($event))"
+        />
+      </label>
+      <label class="field full">
+        <span>URL del logo (opcional)</span>
+        <input
+          class="input"
+          [value]="newRestaurant().logoUrl"
+          (input)="setNewLogo(asInputValue($event))"
+          placeholder="https://…"
+        />
+      </label>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" (click)="toggleCreate()">Cancelar</button>
+      <button class="btn btn-primary" [disabled]="saving()" (click)="createRestaurant()">
+        Guardar
+      </button>
+    </div>
+  </div>
+}
+
+<div class="layout">
+  <aside class="card list">
+    @if (loadingRestaurants()) {
+      <div class="muted pad">Cargando locales…</div>
+    } @else if (restaurants().length === 0) {
+      <div class="muted pad">Aún no hay locales. Cree el primero.</div>
+    } @else {
+      @for (r of restaurants(); track r.id) {
+        <button
+          type="button"
+          class="list-item"
+          [class.active]="r.id === selectedId()"
+          [class.inactive]="!r.active"
+          (click)="select(r.id)"
+        >
+          <span class="dot" [style.background]="r.primaryColor || '#94a3b8'"></span>
+          <div class="list-meta">
+            <strong>{{ r.name }}</strong>
+            <small class="muted">{{ r.slug }}</small>
+          </div>
+          @if (!r.active) {
+            <span class="badge">Inactivo</span>
+          }
+        </button>
+      }
+    }
+  </aside>
+
+  <section class="card detail">
+    @if (!selectedRestaurant()) {
+      <div class="empty-state">
+        <p>Seleccione un local para ver sus detalles y miembros.</p>
+      </div>
+    } @else {
+      <header class="detail-head">
+        <div>
+          <h2>{{ selectedRestaurant()!.name }}</h2>
+          <p class="muted">
+            <code>{{ selectedRestaurant()!.slug }}</code>
+            @if (selectedRestaurant()!.address) {
+              · {{ selectedRestaurant()!.address }}
+            }
+          </p>
+        </div>
+        <div class="detail-actions">
+          <button
+            class="btn"
+            [class.btn-ghost]="selectedRestaurant()!.active"
+            [class.btn-success]="!selectedRestaurant()!.active"
+            (click)="toggleActive(selectedRestaurant()!)"
+          >
+            {{ selectedRestaurant()!.active ? 'Desactivar' : 'Reactivar' }}
+          </button>
+        </div>
+      </header>
+
+      <div class="section">
+        <h3>Miembros del local</h3>
+
+        <div class="add-member">
+          <select
+            class="select"
+            [value]="newMemberUserId()"
+            (change)="setNewMemberUser(asSelectValue($event))"
+          >
+            <option value="">Seleccione un usuario…</option>
+            @for (u of availableUsers(); track u.id) {
+              <option [value]="u.id">{{ u.name }} · {{ u.email }}</option>
+            }
+          </select>
+          <select
+            class="select"
+            [value]="newMemberRole()"
+            (change)="setNewMemberRole(asRoleValue($event))"
+          >
+            <option [value]="UserRole.ADMIN">Administrador</option>
+            <option [value]="UserRole.OPERATOR">Operador</option>
+          </select>
+          <button class="btn btn-primary" (click)="addMember()">Agregar</button>
+        </div>
+
+        @if (loadingMembers()) {
+          <p class="muted">Cargando miembros…</p>
+        } @else if (members().length === 0) {
+          <p class="muted">Este local todavía no tiene miembros asignados.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th class="t-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of members(); track m.id) {
+                  <tr [class.dim]="!m.active">
+                    <td>
+                      <div class="user">
+                        <div class="avatar">{{ initials(m.userName) }}</div>
+                        <div class="user-meta">
+                          <strong>{{ m.userName }}</strong>
+                          <small class="muted">{{ m.userEmail }}</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <select
+                        class="select compact"
+                        [value]="m.role"
+                        (change)="changeMemberRole(m, asRoleValue($event))"
+                      >
+                        <option [value]="UserRole.ADMIN">Administrador</option>
+                        <option [value]="UserRole.OPERATOR">Operador</option>
+                      </select>
+                    </td>
+                    <td>
+                      @if (m.active) {
+                        <span class="badge badge-success">Activo</span>
+                      } @else {
+                        <span class="badge">Inactivo</span>
+                      }
+                    </td>
+                    <td class="t-right">
+                      <button
+                        class="btn btn-ghost btn-sm"
+                        (click)="toggleMemberActive(m)"
+                      >
+                        {{ m.active ? 'Desactivar' : 'Reactivar' }}
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+  </section>
+</div>
