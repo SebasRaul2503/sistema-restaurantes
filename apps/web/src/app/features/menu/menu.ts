@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DishDto, MenuCategoryDto } from '@restaurante/shared-types';
 import { CategoryPayload, DishPayload, MenuApi } from '../../core/data/menu.api';
@@ -57,8 +57,10 @@ export class MenuPage {
       // Al cambiar de local, resetea el filtro de categoría (la id pertenece
       // al local anterior) y recarga carta + platos.
       this.selectedCategoryId.set(null);
-      void this.loadCategories();
-      void this.loadDishes();
+      untracked(() => {
+        void this.loadCategories();
+        void this.loadDishes();
+      });
     });
   }
 

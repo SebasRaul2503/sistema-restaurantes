@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CashMovementType, CashSessionDto, CashSessionStatus } from '@restaurante/shared-types';
@@ -49,7 +49,7 @@ export class CashPage {
   constructor() {
     effect(() => {
       this.active.activeRestaurantId();
-      void this.reload();
+      untracked(() => void this.reload());
     });
   }
 

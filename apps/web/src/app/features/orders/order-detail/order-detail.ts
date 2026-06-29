@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
@@ -80,7 +80,7 @@ export class OrderDetailPage {
     this.orderId = this.route.snapshot.paramMap.get('orderId') ?? '';
     effect(() => {
       this.active.activeRestaurantId();
-      void this.load();
+      untracked(() => void this.load());
     });
   }
 

@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
   RevenueByMethodDto,
@@ -52,7 +52,7 @@ export class ReportsPage {
   constructor() {
     effect(() => {
       this.active.activeRestaurantId();
-      void this.refresh();
+      untracked(() => void this.refresh());
     });
   }
 

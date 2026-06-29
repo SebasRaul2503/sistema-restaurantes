@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, signal, untracked } from '@angular/core';
 import { KitchenItemDto, OrderItemStatus } from '@restaurante/shared-types';
 import { KitchenApi } from '../../core/data/kitchen.api';
 import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
@@ -37,7 +37,7 @@ export class KitchenPage implements OnInit, OnDestroy {
     // primera carga). El timer periódico sigue corriendo en paralelo.
     effect(() => {
       this.active.activeRestaurantId();
-      void this.refresh();
+      untracked(() => void this.refresh());
     });
   }
 

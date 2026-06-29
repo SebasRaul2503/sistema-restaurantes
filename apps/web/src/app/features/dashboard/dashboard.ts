@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardDto } from '@restaurante/shared-types';
 import { ReportsApi } from '../../core/data/reports.api';
@@ -23,7 +23,7 @@ export class DashboardPage {
   constructor() {
     effect(() => {
       this.active.activeRestaurantId();
-      void this.refresh();
+      untracked(() => void this.refresh());
     });
   }
 
