@@ -1,6 +1,8 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ToastContainer } from './shared/components/toast-container/toast-container';
+import { ActiveRestaurantService } from './core/services/active-restaurant.service';
+import { AuthService } from './core/services/auth.service';
 import { ThemeService } from './core/services/theme.service';
 
 @Component({
@@ -12,8 +14,15 @@ import { ThemeService } from './core/services/theme.service';
 })
 export class App implements OnInit {
   private readonly theme = inject(ThemeService);
+  private readonly auth = inject(AuthService);
+  private readonly activeRestaurant = inject(ActiveRestaurantService);
 
-  ngOnInit(): void {
-    void this.theme.load();
+  async ngOnInit(): Promise<void> {
+    if (this.auth.isAuthenticated()) {
+      await this.auth.refreshMe();
+      await this.activeRestaurant.load();
+    } else {
+      void this.theme.loadTenant();
+    }
   }
 }

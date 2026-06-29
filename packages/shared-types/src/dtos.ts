@@ -63,6 +63,41 @@ export interface RestaurantMemberDto {
   createdAt: string;
 }
 
+/** Payload para crear un local. */
+export interface CreateRestaurantDto {
+  slug: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+}
+
+/** Payload para actualizar un local. */
+export interface UpdateRestaurantDto {
+  slug?: string;
+  name?: string;
+  address?: string;
+  phone?: string;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  logoUrl?: string | null;
+  active?: boolean;
+}
+
+/** Payload para asignar un miembro. */
+export interface CreateMemberDto {
+  userId: string;
+  role: UserRole;
+}
+
+/** Payload para actualizar un miembro. */
+export interface UpdateMemberDto {
+  role?: UserRole;
+  active?: boolean;
+}
+
 /** Marca efectiva para un local (override o tenant). */
 export interface RestaurantThemeDto {
   name: string;

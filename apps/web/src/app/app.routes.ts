@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
+import { requireLocalGuard } from './core/guards/require-local.guard';
 
 export const routes: Routes = [
   {
@@ -8,9 +9,17 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login/login').then((m) => m.LoginPage),
   },
   {
+    path: 'seleccionar-local',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/restaurants/select-restaurant/select-restaurant').then(
+        (m) => m.SelectRestaurantPage,
+      ),
+  },
+  {
     path: '',
     loadComponent: () => import('./layouts/main-layout/main-layout').then((m) => m.MainLayout),
-    canActivate: [authGuard],
+    canActivate: [authGuard, requireLocalGuard],
     children: [
       { path: '', redirectTo: 'panel', pathMatch: 'full' },
       {
@@ -52,6 +61,12 @@ export const routes: Routes = [
         path: 'usuarios',
         canActivate: [adminGuard],
         loadComponent: () => import('./features/users/users').then((m) => m.UsersPage),
+      },
+      {
+        path: 'locales',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/restaurants/list/restaurants-list').then((m) => m.RestaurantsListPage),
       },
       {
         path: 'soporte',

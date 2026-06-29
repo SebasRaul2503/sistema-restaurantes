@@ -27,7 +27,7 @@ export class LoginPage implements OnInit {
     if (this.auth.isAuthenticated()) {
       void this.router.navigate(['/panel']);
     }
-    void this.theme.load();
+    void this.theme.loadTenant();
   }
 
   async submit(): Promise<void> {
@@ -39,7 +39,6 @@ export class LoginPage implements OnInit {
     this.error.set(null);
     try {
       await this.auth.login(this.email(), this.password());
-      await this.theme.load();
       await this.router.navigate(['/panel']);
     } catch {
       this.error.set('Credenciales incorrectas. Verifique e intente nuevamente.');

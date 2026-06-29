@@ -1,0 +1,40 @@
+<div class="restaurant-selector" (mouseleave)="close()">
+  @if (hasMultiple()) {
+    <button class="trigger" type="button" (click)="toggle()" [class.open]="open()">
+      <span class="avatar">{{ displayInitials() }}</span>
+      <span class="name">{{ displayName() }}</span>
+      <app-icon name="chevron-down" [size]="16" />
+    </button>
+  } @else {
+    <div class="trigger readonly" [title]="displayName()">
+      <span class="avatar">{{ displayInitials() }}</span>
+      <span class="name">{{ displayName() }}</span>
+    </div>
+  }
+
+  @if (open() && hasMultiple()) {
+    <div class="menu" role="menu">
+      <div class="menu-head muted">Tus locales</div>
+      @for (r of restaurants(); track r.id) {
+        <button
+          type="button"
+          class="menu-item"
+          role="menuitem"
+          [class.active]="r.id === activeId()"
+          (click)="select(r)"
+        >
+          <span class="dot"></span>
+          <span class="menu-item-name">{{ r.name }}</span>
+          @if (r.id === activeId()) {
+            <app-icon name="check" [size]="16" />
+          }
+        </button>
+      }
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item" (click)="goToSelect()">
+        <app-icon name="building" [size]="16" />
+        <span>Ver todos los locales</span>
+      </button>
+    </div>
+  }
+</div>
