@@ -54,10 +54,10 @@ export class MenuPage {
   constructor() {
     effect(() => {
       this.active.activeRestaurantId();
-      // Al cambiar de local, resetea el filtro de categoría (la id pertenece
-      // al local anterior) y recarga carta + platos.
-      this.selectedCategoryId.set(null);
       untracked(() => {
+        // Al cambiar de local, resetea el filtro de categoría (la id
+        // pertenece al local anterior) y recarga carta + platos.
+        this.selectedCategoryId.set(null);
         void this.loadCategories();
         void this.loadDishes();
       });
