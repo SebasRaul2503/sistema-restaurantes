@@ -138,8 +138,23 @@ mecanismo se resume en cinco puntos:
   se asocian a mesas, no a clientes identificados. Los grupos de cuenta usan
   etiquetas libres ("Cliente A") sin PII.
 - **Hashing de contraseñas** con `bcrypt` (cost 12). Nunca se almacenan en claro.
-- **Autenticación segura**: JWT de acceso de vida corta + refresh; secretos por
-  entorno.
+- **Autenticación con dos tokens**:
+  - **Access token** (vida corta, 15 min): viaja en memoria del cliente (signal
+    en `AuthService`). Se envía en cada request vía header `Authorization:
+    Bearer …`. Se pierde al cerrar la pestaña.
+  - **Refresh token** (vida larga, 7 días): viaja en **cookie httpOnly** que el
+    JavaScript del cliente **no puede leer**. La cookie tiene `Path=/api/auth`
+    (alcance limitado), `SameSite=Strict` en producción (`Lax` en dev) y `Secure`
+    en producción.
+  - **Rotación por jti**: cada `POST /api/auth/refresh` emite un refresh nuevo y
+    revoca el anterior en la tabla `refresh_tokens`. Un refresh filtrado queda
+    anulado en cuanto se detecte el siguiente uso.
+  - **Logout total**: `POST /api/auth/logout` revoca el refresh presentado y
+    limpia la cookie.
+- **Sin persistencia en cliente**: nada de tokens, user, ni `me` se guarda en
+  `localStorage` ni `sessionStorage`. XSS no puede exfiltrar nada de sesión.
+  Al recargar la pestaña, el frontend intenta `bootstrap()` (refresh con cookie);
+  si la cookie sigue viva, login silencioso; si no, redirect a `/ingresar`.
 - **RBAC**: `@Roles()` + guard global. El operador solo accede a operación diaria.
 - **Auditoría** de acciones sensibles (`AuditLog`).
 - **Validación de entrada** con `class-validator` en todos los DTOs + whitelist

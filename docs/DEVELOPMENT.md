@@ -189,11 +189,14 @@ Guards, pipe y prefijo `/api` se configuran globalmente en `src/main.ts`.
 apps/web/src/app/
   core/
     data/        *.api.ts   → clientes tipados por dominio (única vía de acceso a la API)
-    services/    auth, theme, notification, api (HttpClient base)
-    guards/      authGuard, adminGuard
-    interceptors/ authInterceptor (Bearer), errorInterceptor (toasts + refresh)
+    services/    auth (en memoria, sin localStorage), theme, notification,
+                  api (HttpClient con withCredentials: true)
+    guards/      authGuard, adminGuard, requireLocalGuard
+    interceptors/ authInterceptor (Bearer), restaurantInterceptor
+                  (X-Restaurant-Id), errorInterceptor (toasts + refresh)
   shared/
-    components/  Icon (SVG Lucide), ToastContainer, DateField (dd/mm/aaaa)
+    components/  Icon (SVG Lucide), ToastContainer, DateField (dd/mm/aaaa),
+                  RestaurantSelector (dropdown del topbar)
     pipes/       SolesPipe (| soles), EnumLabelPipe (| enumLabel:'...')
   layouts/       MainLayout (sidebar + topbar, drawer móvil)
   features/      una carpeta por pantalla (componentes standalone)
