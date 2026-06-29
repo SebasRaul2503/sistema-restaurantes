@@ -1,10 +1,8 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
-import { RolesGuard } from './common/guards/roles.guard';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -28,15 +26,16 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // Guards globales: autenticación (JWT) + autorización (RBAC).
-  const reflector = app.get(Reflector);
-  app.useGlobalGuards(new JwtAuthGuard(reflector), new RolesGuard(reflector));
+  // Los guards globales se registran vía APP_GUARD en app.module.ts para que
+  // NestJS gestione sus dependencias (Prisma, Reflector, etc.).
 
   // Documentación Swagger.
   const swaggerConfig = new DocumentBuilder()
     .setTitle('API — Sistema de Gestión de Restaurantes')
-    .setDescription('API para la gestión de operaciones de restaurantes en Perú.')
-    .setVersion('1.0')
+    .setDescription(
+      'API para la gestión de operaciones de restaurantes en Perú. Soporta múltiples locales.',
+    )
+    .setVersion('1.1')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);

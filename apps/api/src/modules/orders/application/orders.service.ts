@@ -27,25 +27,34 @@ export class OrdersService {
     private readonly audit: AuditService,
   ) {}
 
+  private ensureRestaurant(restaurantId: string): void {
+    if (!restaurantId) {
+      throw new BadRequestException('No se ha seleccionado un local activo.');
+    }
+  }
+
   // ---- Lectura ----------------------------------------------------------
 
-  async findActive(): Promise<OrderSummaryDto[]> {
+  async findActive(restaurantId: string): Promise<OrderSummaryDto[]> {
+    this.ensureRestaurant(restaurantId);
     const orders = await this.prisma.order.findMany({
-      where: { status: OrderStatus.ABIERTA },
+      where: { status: OrderStatus.ABIERTA, restaurantId },
       include: ORDER_INCLUDE,
       orderBy: { openedAt: 'asc' },
     });
     return orders.map(toOrderSummary);
   }
 
-  async findOne(id: string): Promise<OrderDto> {
-    const order = await this.getOrderOrThrow(id);
+  async findOne(id: string, restaurantId: string): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const order = await this.getOrderOrThrow(id, restaurantId);
     return toOrderDto(order);
   }
 
-  async findActiveByTable(tableId: string): Promise<OrderDto | null> {
+  async findActiveByTable(tableId: string, restaurantId: string): Promise<OrderDto | null> {
+    this.ensureRestaurant(restaurantId);
     const order = await this.prisma.order.findFirst({
-      where: { tableId, status: OrderStatus.ABIERTA },
+      where: { tableId, status: OrderStatus.ABIERTA, restaurantId },
       include: ORDER_INCLUDE,
     });
     return order ? toOrderDto(order) : null;
@@ -53,8 +62,11 @@ export class OrdersService {
 
   // ---- Ciclo de vida del pedido ----------------------------------------
 
-  async create(dto: CreateOrderDto, actorId: string): Promise<OrderDto> {
-    const table = await this.prisma.table.findUnique({ where: { id: dto.tableId } });
+  async create(dto: CreateOrderDto, actorId: string, restaurantId: string): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const table = await this.prisma.table.findFirst({
+      where: { id: dto.tableId, restaurantId },
+    });
     if (!table || !table.active) {
       throw new NotFoundException('Mesa no encontrada.');
     }
@@ -63,7 +75,7 @@ export class OrdersService {
     }
 
     const existing = await this.prisma.order.findFirst({
-      where: { tableId: dto.tableId, status: OrderStatus.ABIERTA },
+      where: { tableId: dto.tableId, status: OrderStatus.ABIERTA, restaurantId },
     });
     if (existing) {
       throw new BadRequestException('La mesa ya tiene un pedido activo.');
@@ -71,24 +83,37 @@ export class OrdersService {
 
     const order = await this.prisma.$transaction(async (tx) => {
       const created = await tx.order.create({
-        data: { tableId: dto.tableId, notes: dto.notes ?? null, openedById: actorId },
+        data: {
+          restaurantId,
+          tableId: dto.tableId,
+          notes: dto.notes ?? null,
+          openedById: actorId,
+        },
       });
       await tx.table.update({
         where: { id: dto.tableId },
         data: { status: TableStatus.OCUPADA },
       });
       await this.audit.record(
-        { userId: actorId, action: 'ORDER_CREATED', entity: 'Order', entityId: created.id, metadata: { tableId: dto.tableId } },
+        {
+          userId: actorId,
+          action: 'ORDER_CREATED',
+          entity: 'Order',
+          entityId: created.id,
+          restaurantId,
+          metadata: { tableId: dto.tableId },
+        },
         tx,
       );
       return created;
     });
 
-    return this.findOne(order.id);
+    return this.findOne(order.id, restaurantId);
   }
 
-  async cancel(id: string, actorId: string): Promise<OrderDto> {
-    const order = await this.getOrderOrThrow(id);
+  async cancel(id: string, actorId: string, restaurantId: string): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const order = await this.getOrderOrThrow(id, restaurantId);
     if (order.status !== OrderStatus.ABIERTA) {
       throw new BadRequestException('Solo se puede anular un pedido abierto.');
     }
@@ -103,21 +128,35 @@ export class OrdersService {
       });
       await tx.table.update({ where: { id: order.tableId }, data: { status: TableStatus.LIBRE } });
       await this.audit.record(
-        { userId: actorId, action: 'ORDER_CANCELLED', entity: 'Order', entityId: id },
+        {
+          userId: actorId,
+          action: 'ORDER_CANCELLED',
+          entity: 'Order',
+          entityId: id,
+          restaurantId,
+        },
         tx,
       );
     });
 
-    return this.findOne(id);
+    return this.findOne(id, restaurantId);
   }
 
   // ---- Ítems del pedido -------------------------------------------------
 
-  async addItem(orderId: string, dto: AddOrderItemDto, actorId: string): Promise<OrderDto> {
-    const order = await this.getOrderOrThrow(orderId);
+  async addItem(
+    orderId: string,
+    dto: AddOrderItemDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const order = await this.getOrderOrThrow(orderId, restaurantId);
     this.assertOpen(order.status as OrderStatus);
 
-    const dish = await this.prisma.dish.findUnique({ where: { id: dto.dishId } });
+    const dish = await this.prisma.dish.findFirst({
+      where: { id: dto.dishId, restaurantId },
+    });
     if (!dish || !dish.active) {
       throw new NotFoundException('Plato no encontrado o inactivo.');
     }
@@ -136,14 +175,27 @@ export class OrdersService {
       action: 'ITEM_ADDED',
       entity: 'OrderItem',
       entityId: item.id,
+      restaurantId,
       metadata: { orderId, dish: dish.name, quantity: dto.quantity },
     });
 
-    return this.findOne(orderId);
+    return this.findOne(orderId, restaurantId);
   }
 
-  async updateItem(itemId: string, dto: UpdateOrderItemDto, actorId: string): Promise<OrderDto> {
-    const item = await this.prisma.orderItem.findUnique({ where: { id: itemId }, include: { order: true } });
+  async updateItem(
+    itemId: string,
+    dto: UpdateOrderItemDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const item = await this.prisma.orderItem.findFirst({
+      where: {
+        id: itemId,
+        order: { restaurantId },
+      },
+      include: { order: true },
+    });
     if (!item) {
       throw new NotFoundException('Plato del pedido no encontrado.');
     }
@@ -166,19 +218,26 @@ export class OrdersService {
       action: 'ITEM_UPDATED',
       entity: 'OrderItem',
       entityId: itemId,
+      restaurantId,
       metadata: { orderId: item.orderId },
     });
 
-    return this.findOne(item.orderId);
+    return this.findOne(item.orderId, restaurantId);
   }
 
-  async removeItem(itemId: string, actorId: string): Promise<OrderDto> {
-    const item = await this.prisma.orderItem.findUnique({ where: { id: itemId }, include: { order: true } });
+  async removeItem(itemId: string, actorId: string, restaurantId: string): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const item = await this.prisma.orderItem.findFirst({
+      where: {
+        id: itemId,
+        order: { restaurantId },
+      },
+      include: { order: true },
+    });
     if (!item) {
       throw new NotFoundException('Plato del pedido no encontrado.');
     }
     this.assertOpen(item.order.status as OrderStatus);
-    // Protección de platos entregados: nunca se eliminan en silencio.
     if (item.status === OrderItemStatus.ENTREGADO) {
       throw new BadRequestException(
         'No se puede eliminar un plato entregado. Use la opción de reemplazo para corregirlo.',
@@ -191,10 +250,11 @@ export class OrdersService {
       action: 'ITEM_REMOVED',
       entity: 'OrderItem',
       entityId: itemId,
+      restaurantId,
       metadata: { orderId: item.orderId, dishId: item.dishId },
     });
 
-    return this.findOne(item.orderId);
+    return this.findOne(item.orderId, restaurantId);
   }
 
   /**
@@ -202,9 +262,18 @@ export class OrdersService {
    * Marca el original como modificado (excluido del total) y crea un reemplazo
    * en estado PREPARANDO enlazado por `replacesItemId`. Traza completa.
    */
-  async replaceDeliveredItem(itemId: string, dto: ReplaceItemDto, actorId: string): Promise<OrderDto> {
-    const original = await this.prisma.orderItem.findUnique({
-      where: { id: itemId },
+  async replaceDeliveredItem(
+    itemId: string,
+    dto: ReplaceItemDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    this.ensureRestaurant(restaurantId);
+    const original = await this.prisma.orderItem.findFirst({
+      where: {
+        id: itemId,
+        order: { restaurantId },
+      },
       include: { order: true },
     });
     if (!original) {
@@ -219,7 +288,9 @@ export class OrdersService {
     }
 
     const replacementDishId = dto.dishId ?? original.dishId;
-    const dish = await this.prisma.dish.findUnique({ where: { id: replacementDishId } });
+    const dish = await this.prisma.dish.findFirst({
+      where: { id: replacementDishId, restaurantId },
+    });
     if (!dish) {
       throw new NotFoundException('Plato de reemplazo no encontrado.');
     }
@@ -233,7 +304,7 @@ export class OrdersService {
           unitPrice: dish.price,
           quantity: dto.quantity ?? original.quantity,
           notes: dto.notes ?? original.notes,
-          status: OrderItemStatus.PREPARANDO, // el reemplazo vuelve a cocina
+          status: OrderItemStatus.PREPARANDO,
           replacesItemId: original.id,
         },
       });
@@ -243,13 +314,18 @@ export class OrdersService {
           action: 'ITEM_REPLACED',
           entity: 'OrderItem',
           entityId: original.id,
-          metadata: { replacementId: replacement.id, reason: dto.reason ?? null, orderId: original.orderId },
+          restaurantId,
+          metadata: {
+            replacementId: replacement.id,
+            reason: dto.reason ?? null,
+            orderId: original.orderId,
+          },
         },
         tx,
       );
     });
 
-    return this.findOne(original.orderId);
+    return this.findOne(original.orderId, restaurantId);
   }
 
   // ---- Helpers compartidos ---------------------------------------------
@@ -258,7 +334,11 @@ export class OrdersService {
    * Cierra el pedido si está totalmente pagado (libera la mesa). Pensado para
    * llamarse desde PaymentsService dentro de la misma transacción.
    */
-  async closeIfFullyPaid(orderId: string, actorId: string, tx: Prisma.TransactionClient): Promise<boolean> {
+  async closeIfFullyPaid(
+    orderId: string,
+    actorId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<boolean> {
     const order = await tx.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
     if (!order || order.status !== OrderStatus.ABIERTA) {
       return false;
@@ -272,14 +352,23 @@ export class OrdersService {
     });
     await tx.table.update({ where: { id: order.tableId }, data: { status: TableStatus.LIBRE } });
     await this.audit.record(
-      { userId: actorId, action: 'ORDER_CLOSED', entity: 'Order', entityId: orderId },
+      {
+        userId: actorId,
+        action: 'ORDER_CLOSED',
+        entity: 'Order',
+        entityId: orderId,
+        restaurantId: order.restaurantId,
+      },
       tx,
     );
     return true;
   }
 
-  private async getOrderOrThrow(id: string) {
-    const order = await this.prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE });
+  private async getOrderOrThrow(id: string, restaurantId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id, restaurantId },
+      include: ORDER_INCLUDE,
+    });
     if (!order) {
       throw new NotFoundException('Pedido no encontrado.');
     }

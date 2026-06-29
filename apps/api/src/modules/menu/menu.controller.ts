@@ -14,6 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { DishDto, MenuCategoryDto, UserRole } from '@restaurante/shared-types';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentRestaurant } from '../../common/decorators/current-restaurant.decorator';
 import { MenuService } from './menu.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -31,9 +32,9 @@ export class MenuController {
   // --------------------------------------------------------------------
 
   @Get('categories')
-  @ApiOperation({ summary: 'Listar categorías de la carta' })
-  listCategories(): Promise<MenuCategoryDto[]> {
-    return this.menuService.listCategories();
+  @ApiOperation({ summary: 'Listar categorías del local activo' })
+  listCategories(@CurrentRestaurant('id') restaurantId: string): Promise<MenuCategoryDto[]> {
+    return this.menuService.listCategories(restaurantId);
   }
 
   @Post('categories')
@@ -42,8 +43,9 @@ export class MenuController {
   createCategory(
     @Body() dto: CreateCategoryDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<MenuCategoryDto> {
-    return this.menuService.createCategory(dto, actorId);
+    return this.menuService.createCategory(dto, actorId, restaurantId);
   }
 
   @Patch('categories/:id')
@@ -53,8 +55,9 @@ export class MenuController {
     @Param('id') id: string,
     @Body() dto: UpdateCategoryDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<MenuCategoryDto> {
-    return this.menuService.updateCategory(id, dto, actorId);
+    return this.menuService.updateCategory(id, dto, actorId, restaurantId);
   }
 
   @Delete('categories/:id')
@@ -64,8 +67,9 @@ export class MenuController {
   deleteCategory(
     @Param('id') id: string,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<void> {
-    return this.menuService.deleteCategory(id, actorId);
+    return this.menuService.deleteCategory(id, actorId, restaurantId);
   }
 
   // --------------------------------------------------------------------
@@ -73,14 +77,16 @@ export class MenuController {
   // --------------------------------------------------------------------
 
   @Get('dishes')
-  @ApiOperation({ summary: 'Listar platos' })
+  @ApiOperation({ summary: 'Listar platos del local activo' })
   @ApiQuery({ name: 'categoryId', required: false })
   @ApiQuery({ name: 'active', required: false, type: Boolean })
   listDishes(
+    @CurrentRestaurant('id') restaurantId: string,
     @Query('categoryId') categoryId?: string,
     @Query('active') active?: string,
   ): Promise<DishDto[]> {
     return this.menuService.listDishes({
+      restaurantId,
       categoryId,
       active: this.parseBoolean(active),
     });
@@ -88,8 +94,11 @@ export class MenuController {
 
   @Get('dishes/:id')
   @ApiOperation({ summary: 'Obtener un plato' })
-  getDish(@Param('id') id: string): Promise<DishDto> {
-    return this.menuService.getDish(id);
+  getDish(
+    @Param('id') id: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<DishDto> {
+    return this.menuService.getDish(id, restaurantId);
   }
 
   @Post('dishes')
@@ -98,8 +107,9 @@ export class MenuController {
   createDish(
     @Body() dto: CreateDishDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<DishDto> {
-    return this.menuService.createDish(dto, actorId);
+    return this.menuService.createDish(dto, actorId, restaurantId);
   }
 
   @Patch('dishes/:id')
@@ -109,8 +119,9 @@ export class MenuController {
     @Param('id') id: string,
     @Body() dto: UpdateDishDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<DishDto> {
-    return this.menuService.updateDish(id, dto, actorId);
+    return this.menuService.updateDish(id, dto, actorId, restaurantId);
   }
 
   @Delete('dishes/:id')
@@ -119,8 +130,9 @@ export class MenuController {
   deleteDish(
     @Param('id') id: string,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<DishDto> {
-    return this.menuService.deleteDish(id, actorId);
+    return this.menuService.deleteDish(id, actorId, restaurantId);
   }
 
   private parseBoolean(value?: string): boolean | undefined {

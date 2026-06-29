@@ -19,12 +19,12 @@ export class KitchenService {
   ) {}
 
   /** Cola de cocina: platos por preparar/entregar de pedidos abiertos (FIFO). */
-  async queue(): Promise<KitchenItemDto[]> {
+  async queue(restaurantId: string): Promise<KitchenItemDto[]> {
     const items = await this.prisma.orderItem.findMany({
       where: {
         isModified: false,
         status: { in: [OrderItemStatus.PENDIENTE, OrderItemStatus.PREPARANDO] },
-        order: { status: OrderStatus.ABIERTA },
+        order: { status: OrderStatus.ABIERTA, restaurantId },
       },
       include: {
         dish: { select: { name: true } },
@@ -48,9 +48,14 @@ export class KitchenService {
   }
 
   /** Transición de estado de un plato con validación del flujo permitido. */
-  async changeStatus(itemId: string, status: OrderItemStatus, actorId: string): Promise<KitchenItemDto> {
-    const item = await this.prisma.orderItem.findUnique({
-      where: { id: itemId },
+  async changeStatus(
+    itemId: string,
+    status: OrderItemStatus,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<KitchenItemDto> {
+    const item = await this.prisma.orderItem.findFirst({
+      where: { id: itemId, order: { restaurantId } },
       include: { order: true },
     });
     if (!item) {
@@ -76,11 +81,12 @@ export class KitchenService {
       action: 'ITEM_STATUS_CHANGED',
       entity: 'OrderItem',
       entityId: itemId,
+      restaurantId,
       metadata: { from: item.status, to: status, orderId: item.orderId },
     });
 
-    const updated = await this.prisma.orderItem.findUniqueOrThrow({
-      where: { id: itemId },
+    const updated = await this.prisma.orderItem.findFirstOrThrow({
+      where: { id: itemId, order: { restaurantId } },
       include: {
         dish: { select: { name: true } },
         order: { select: { code: true, table: { select: { number: true } } } },

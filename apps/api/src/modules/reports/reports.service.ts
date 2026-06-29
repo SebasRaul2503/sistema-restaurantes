@@ -35,7 +35,7 @@ export class ReportsService {
   // -----------------------------------------------------------------------
   // 1. Dashboard
   // -----------------------------------------------------------------------
-  async dashboard(): Promise<DashboardDto> {
+  async dashboard(restaurantId: string): Promise<DashboardDto> {
     const [
       tablesByStatus,
       activeOrders,
@@ -45,24 +45,26 @@ export class ReportsService {
     ] = await Promise.all([
       this.prisma.table.groupBy({
         by: ['status'],
-        where: { active: true },
+        where: { active: true, restaurantId },
         _count: { _all: true },
       }),
-      this.prisma.order.count({ where: { status: OrderStatus.ABIERTA } }),
+      this.prisma.order.count({
+        where: { status: OrderStatus.ABIERTA, restaurantId },
+      }),
       this.prisma.orderItem.groupBy({
         by: ['status'],
         where: {
           isModified: false,
-          order: { status: OrderStatus.ABIERTA },
+          order: { status: OrderStatus.ABIERTA, restaurantId },
         },
         _count: { _all: true },
       }),
       this.prisma.payment.aggregate({
-        where: { createdAt: { gte: startOfToday() } },
+        where: { createdAt: { gte: startOfToday() }, order: { restaurantId } },
         _sum: { amount: true },
       }),
       this.prisma.payment.aggregate({
-        where: { createdAt: { gte: startOfMonth() } },
+        where: { createdAt: { gte: startOfMonth() }, order: { restaurantId } },
         _sum: { amount: true },
       }),
     ]);
@@ -92,13 +94,17 @@ export class ReportsService {
   // -----------------------------------------------------------------------
   async revenue(
     period: RevenuePeriod = 'daily',
-    from?: string,
-    to?: string,
+    from: string | undefined,
+    to: string | undefined,
+    restaurantId: string,
   ): Promise<RevenuePointDto[]> {
     const { start, end } = this.resolveRevenueRange(period, from, to);
 
     const payments = await this.prisma.payment.findMany({
-      where: { createdAt: { gte: start, lte: end } },
+      where: {
+        createdAt: { gte: start, lte: end },
+        order: { restaurantId },
+      },
       select: { amount: true, createdAt: true },
     });
 
@@ -116,13 +122,19 @@ export class ReportsService {
   // -----------------------------------------------------------------------
   // 3. Platos más vendidos
   // -----------------------------------------------------------------------
-  async topDishes(from?: string, to?: string, limit = 10): Promise<TopDishDto[]> {
+  async topDishes(
+    from: string | undefined,
+    to: string | undefined,
+    limit: number,
+    restaurantId: string,
+  ): Promise<TopDishDto[]> {
     const { start, end } = this.resolveRange(from, to);
 
     const items = await this.prisma.orderItem.findMany({
       where: {
         isModified: false,
         createdAt: { gte: start, lte: end },
+        order: { restaurantId },
       },
       select: {
         dishId: true,
@@ -156,11 +168,16 @@ export class ReportsService {
   // -----------------------------------------------------------------------
   // 4. Mesas con más facturación
   // -----------------------------------------------------------------------
-  async topTables(from?: string, to?: string, limit = 10): Promise<TopTableDto[]> {
+  async topTables(
+    from: string | undefined,
+    to: string | undefined,
+    limit: number,
+    restaurantId: string,
+  ): Promise<TopTableDto[]> {
     const { start, end } = this.resolveRange(from, to);
 
     const orders = await this.prisma.order.findMany({
-      where: { openedAt: { gte: start, lte: end } },
+      where: { openedAt: { gte: start, lte: end }, restaurantId },
       select: {
         tableId: true,
         table: { select: { number: true } },
@@ -194,17 +211,23 @@ export class ReportsService {
   // -----------------------------------------------------------------------
   // 5. Ingresos por método de pago
   // -----------------------------------------------------------------------
-  async paymentsByMethod(from?: string, to?: string): Promise<RevenueByMethodDto[]> {
+  async paymentsByMethod(
+    from: string | undefined,
+    to: string | undefined,
+    restaurantId: string,
+  ): Promise<RevenueByMethodDto[]> {
     const { start, end } = this.resolveRange(from, to);
 
     const grouped = await this.prisma.payment.groupBy({
       by: ['method'],
-      where: { createdAt: { gte: start, lte: end } },
+      where: {
+        createdAt: { gte: start, lte: end },
+        order: { restaurantId },
+      },
       _sum: { amount: true },
       _count: { _all: true },
     });
 
-    // Devolvemos siempre los 4 métodos (incluidos los que no tienen datos).
     const allMethods: PaymentMethod[] = [
       PaymentMethod.EFECTIVO,
       PaymentMethod.YAPE,
@@ -226,7 +249,6 @@ export class ReportsService {
   // Helpers de rango de fechas
   // -----------------------------------------------------------------------
 
-  /** Rango genérico: por defecto últimos 30 días hasta ahora. */
   private resolveRange(from?: string, to?: string): { start: Date; end: Date } {
     const end = this.parseDate(to) ?? new Date();
     const start =
@@ -234,7 +256,6 @@ export class ReportsService {
     return { start, end };
   }
 
-  /** Rango por defecto dependiente del período solicitado. */
   private resolveRevenueRange(
     period: RevenuePeriod,
     from?: string,
@@ -250,20 +271,19 @@ export class ReportsService {
     let span: number;
     switch (period) {
       case 'weekly':
-        span = 12 * 7 * day; // últimas 12 semanas
+        span = 12 * 7 * day;
         break;
       case 'monthly':
-        span = 365 * day; // ~últimos 12 meses
+        span = 365 * day;
         break;
       case 'daily':
       default:
-        span = 30 * day; // últimos 30 días
+        span = 30 * day;
         break;
     }
     return { start: new Date(end.getTime() - span), end };
   }
 
-  /** Parsea una fecha ISO; devuelve undefined si es inválida o vacía. */
   private parseDate(value?: string): Date | undefined {
     if (!value) {
       return undefined;
@@ -272,7 +292,6 @@ export class ReportsService {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   }
 
-  /** Clave de agrupación según el período (yyyy-mm-dd / yyyy-Www / yyyy-mm). */
   private bucketKey(date: Date, period: RevenuePeriod): string {
     const year = date.getFullYear();
     const month = `${date.getMonth() + 1}`.padStart(2, '0');
@@ -291,12 +310,10 @@ export class ReportsService {
     }
   }
 
-  /** Número de semana ISO-8601 (con su año ISO asociado). */
   private isoWeek(date: Date): { year: number; week: number } {
     const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    // ISO: lunes = 1 ... domingo = 7
     const dayNr = (target.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3); // jueves de esta semana
+    target.setDate(target.getDate() - dayNr + 3);
     const isoYear = target.getFullYear();
     const firstThursday = new Date(isoYear, 0, 4);
     const firstDayNr = (firstThursday.getDay() + 6) % 7;
