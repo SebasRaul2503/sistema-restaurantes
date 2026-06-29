@@ -2,9 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { LoginResponse, UserRole } from '@restaurante/shared-types';
+import { LoginResponse, MeResponse, UserRole } from '@restaurante/shared-types';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { RestaurantsService } from '../restaurants/restaurants.service';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly restaurants: RestaurantsService,
   ) {}
 
   async login(email: string, password: string): Promise<LoginResponse> {
@@ -76,5 +78,42 @@ export class AuthService {
       }),
     ]);
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Devuelve la información del usuario para `/auth/me` junto con sus locales
+   * y el local activo (si la petición trae `X-Restaurant-Id` y el usuario
+   * tiene acceso).
+   */
+  async me(userId: string, role: UserRole, activeRestaurantId: string | null): Promise<MeResponse> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('Sesión no válida.');
+    }
+
+    const restaurants = await this.restaurants.listForUser(userId, role);
+    const memberCount = await this.prisma.restaurantMember.count({ where: { userId } });
+    const isSuperAdmin = role === 'ADMIN' && memberCount === 0;
+
+    // Verificar que el activeRestaurantId sigue siendo válido para el usuario.
+    let resolvedActive: string | null = null;
+    if (activeRestaurantId) {
+      const allowed = isSuperAdmin
+        ? await this.prisma.restaurant.findUnique({ where: { id: activeRestaurantId } })
+        : await this.prisma.restaurantMember.findUnique({
+            where: { userId_restaurantId: { userId, restaurantId: activeRestaurantId } },
+          });
+      if (allowed) {
+        const isMember = isSuperAdmin ? true : (allowed as { active: boolean }).active;
+        if (isMember) resolvedActive = activeRestaurantId;
+      }
+    }
+
+    return {
+      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+      restaurants,
+      activeRestaurantId: resolvedActive,
+      isSuperAdmin,
+    };
   }
 }

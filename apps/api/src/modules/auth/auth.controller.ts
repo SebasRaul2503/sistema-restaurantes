@@ -1,8 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { AuthUser, LoginResponse } from '@restaurante/shared-types';
+import { LoginResponse, MeResponse } from '@restaurante/shared-types';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
+import { SkipRestaurant } from '../../common/decorators/skip-restaurant.decorator';
+import { RequestRestaurant } from '../../common/decorators/current-restaurant.decorator';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -30,8 +32,16 @@ export class AuthController {
 
   @Get('me')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Obtener el usuario autenticado' })
-  me(@CurrentUser() user: RequestUser): AuthUser {
-    return { id: user.id, email: user.email, name: user.name, role: user.role };
+  @SkipRestaurant()
+  @ApiOperation({
+    summary:
+      'Usuario autenticado + locales disponibles + local activo (header X-Restaurant-Id)',
+  })
+  me(
+    @CurrentUser() user: RequestUser,
+    @Req() request: { restaurant?: RequestRestaurant },
+  ): Promise<MeResponse> {
+    const activeRestaurantId = request.restaurant?.id ?? null;
+    return this.authService.me(user.id, user.role, activeRestaurantId);
   }
 }
