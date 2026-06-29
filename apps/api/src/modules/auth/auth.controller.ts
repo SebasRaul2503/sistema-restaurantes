@@ -7,6 +7,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -59,16 +60,14 @@ export class AuthController {
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<LoginResponse> {
+  ): Promise<{ accessToken: string }> {
     const token = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE_NAME];
     if (!token) {
-      throw new Error('No refresh token cookie present');
+      throw new UnauthorizedException('No hay sesión activa.');
     }
     const result = await this.authService.refresh(token);
-    if (result.refreshToken) {
-      setRefreshCookie(res, this.configService, result.refreshToken);
-    }
-    return result;
+    setRefreshCookie(res, this.configService, result.refreshToken);
+    return { accessToken: result.accessToken };
   }
 
   @Post('logout')

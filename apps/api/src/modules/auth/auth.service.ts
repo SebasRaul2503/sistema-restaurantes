@@ -13,6 +13,18 @@ export interface RefreshJwtPayload extends JwtPayload {
   jti: string;
 }
 
+/** Resultado interno de login/refresh: el controller setea la cookie con refreshToken. */
+interface LoginResult {
+  accessToken: string;
+  refreshToken: string;
+  user: { id: string; email: string; name: string; role: UserRole };
+}
+
+interface RefreshResult {
+  accessToken: string;
+  refreshToken: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -23,7 +35,7 @@ export class AuthService {
     private readonly restaurants: RestaurantsService,
   ) {}
 
-  async login(email: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.active) {
       throw new UnauthorizedException('Credenciales incorrectas.');
@@ -58,7 +70,7 @@ export class AuthService {
    * como revocado y se emite uno nuevo. Si el jti no existe, está revocado
    * o expiró, se rechaza.
    */
-  async refresh(refreshTokenJwt: string): Promise<LoginResponse> {
+  async refresh(refreshTokenJwt: string): Promise<RefreshResult> {
     let payload: RefreshJwtPayload;
     try {
       payload = await this.jwt.verifyAsync<RefreshJwtPayload>(refreshTokenJwt, {
@@ -89,11 +101,7 @@ export class AuthService {
       data: { replacedById: stored.jti },
     });
 
-    return {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
-    };
+    return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
   }
 
   /**
