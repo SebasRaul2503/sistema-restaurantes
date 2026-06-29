@@ -18,9 +18,13 @@ export interface AuthUser {
   role: UserRole;
 }
 
+/**
+ * `refreshToken` queda como opcional por compatibilidad transitoria: la
+ * próxima sub-rama lo retira del body (será solo cookie httpOnly).
+ */
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
 }
 
 export interface LoginResponse extends AuthTokens {

@@ -82,7 +82,9 @@ export class AuthService {
 
   private persist(res: LoginResponse): void {
     localStorage.setItem(ACCESS_KEY, res.accessToken);
-    localStorage.setItem(REFRESH_KEY, res.refreshToken);
+    if (res.refreshToken) {
+      localStorage.setItem(REFRESH_KEY, res.refreshToken);
+    }
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
     this.user.set(res.user);
   }
