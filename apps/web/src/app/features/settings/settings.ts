@@ -1,6 +1,10 @@
 import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RestaurantDto, RestaurantSettingsDto } from '@restaurante/shared-types';
+import {
+  RestaurantDto,
+  RestaurantSettingsDto,
+  UpdateRestaurantDto,
+} from '@restaurante/shared-types';
 import { RestaurantsApi } from '../../core/data/restaurants.api';
 import { SettingsApi } from '../../core/data/settings.api';
 import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
@@ -30,7 +34,7 @@ export class SettingsPage {
   readonly phone = signal('');
   readonly businessInfo = signal('');
 
-  // --- Marca del local activo (override) ---
+  // --- Marca y datos del local activo (override) ---
   readonly localName = signal('');
   readonly localAddress = signal('');
   readonly localPhone = signal('');
@@ -88,7 +92,9 @@ export class SettingsPage {
       this.secondaryColor.set(local.secondaryColor ?? tenant.secondaryColor);
       this.logoUrl.set(local.logoUrl ?? tenant.logoUrl ?? null);
       this.hasLocalBrand.set(
-        local.primaryColor !== null || local.secondaryColor !== null || local.logoUrl !== null,
+        local.primaryColor !== null ||
+          local.secondaryColor !== null ||
+          local.logoUrl !== null,
       );
     } else {
       // Sin local activo: mostramos la marca del tenant
@@ -116,29 +122,39 @@ export class SettingsPage {
   inheritFromTenant(): void {
     this.hasLocalBrand.set(false);
     // Se guarda como null en el local → el backend usa el del tenant
-    void this.saveLocalBrand(null, null, null);
+    void this.save();
   }
 
   async save(): Promise<void> {
     if (!this.name().trim()) return;
     this.saving.set(true);
     try {
-      // 1) Datos del negocio (tenant)
+      // 1) Datos del negocio (tenant): solo los campos del tenant
       const tenant = await this.settingsApi.update({
         name: this.name().trim(),
         address: this.address(),
         phone: this.phone(),
         businessInfo: this.businessInfo(),
-        primaryColor: this.primaryColor(),
-        secondaryColor: this.secondaryColor(),
-        logoUrl: this.logoUrl() ?? '',
       });
       this.theme.apply(tenant);
 
-      // 2) Marca y datos del local activo
+      // 2) Datos y marca del local activo
       const restaurantId = this.active.activeRestaurantId();
       if (restaurantId) {
-        await this.saveLocalBrand(this.primaryColor(), this.secondaryColor(), this.logoUrl());
+        const localPayload: UpdateRestaurantDto = {
+          name: this.localName().trim() || undefined,
+          address: this.localAddress(),
+          phone: this.localPhone(),
+          primaryColor: this.primaryColor(),
+          secondaryColor: this.secondaryColor(),
+          logoUrl: this.logoUrl(),
+        };
+        const updatedLocal = await this.restaurantsApi.update(restaurantId, localPayload);
+        this.hasLocalBrand.set(
+          updatedLocal.primaryColor !== null ||
+            updatedLocal.secondaryColor !== null ||
+            updatedLocal.logoUrl !== null,
+        );
       }
 
       this.notify.success('Configuración guardada');
@@ -151,26 +167,5 @@ export class SettingsPage {
     } finally {
       this.saving.set(false);
     }
-  }
-
-  /** Guarda los overrides de marca del local activo. */
-  private async saveLocalBrand(
-    primaryColor: string | null,
-    secondaryColor: string | null,
-    logoUrl: string | null,
-  ): Promise<void> {
-    const restaurantId = this.active.activeRestaurantId();
-    if (!restaurantId) return;
-    const payload: Record<string, string | null | undefined> = {
-      primaryColor,
-      secondaryColor,
-      logoUrl,
-    };
-    await this.restaurantsApi.update(restaurantId, payload as never);
-    // Recarga el local para refrescar hasLocalBrand
-    const local = await this.restaurantsApi.getOne(restaurantId);
-    this.hasLocalBrand.set(
-      local.primaryColor !== null || local.secondaryColor !== null || local.logoUrl !== null,
-    );
   }
 }
