@@ -18,6 +18,10 @@ import { SKIP_RESTAURANT_KEY } from '../decorators/skip-restaurant.decorator';
  * Valida que el usuario autenticado pertenece al local (membresía activa), o
  * que es superadmin (rol ADMIN sin membresías). En rutas con `@SkipRestaurant()`
  * o `@Public()` no exige local y deja `request.restaurant = undefined`.
+ *
+ * Persistencia: si el id resuelto es válido, actualiza `user.lastRestaurantId`
+ * solo si difiere del actual (updateMany con where `not`). Permite que la
+ * sesión se rehidrate con el mismo local tras recargar la pestaña.
  */
 @Injectable()
 export class LocalGuard implements CanActivate {
@@ -60,6 +64,7 @@ export class LocalGuard implements CanActivate {
       const exists = await this.prisma.restaurant.findUnique({ where: { id: requestedId } });
       if (!exists) throw new ForbiddenException('Local no encontrado.');
       request.restaurant = { id: requestedId, isSuperAdmin: true };
+      await this.persistLastRestaurant(user.id, requestedId);
       return true;
     }
 
@@ -71,6 +76,27 @@ export class LocalGuard implements CanActivate {
     }
 
     request.restaurant = { id: requestedId, isSuperAdmin: false };
+    await this.persistLastRestaurant(user.id, requestedId);
     return true;
+  }
+
+  /** Actualiza `user.lastRestaurantId` solo si difiere del actual. */
+  private async persistLastRestaurant(userId: string, restaurantId: string): Promise<void> {
+    try {
+      // Leemos solo el campo necesario (1 query). Si difiere, escribimos (2da query).
+      // Evitamos el `updateMany` con `NOT` por un bug de Prisma con NULL + NOT
+      // que no actualiza cuando el campo es null.
+      const current = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { lastRestaurantId: true },
+      });
+      if (current?.lastRestaurantId === restaurantId) return;
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { lastRestaurantId: restaurantId },
+      });
+    } catch {
+      // La persistencia del local activo no debe romper el request principal.
+    }
   }
 }

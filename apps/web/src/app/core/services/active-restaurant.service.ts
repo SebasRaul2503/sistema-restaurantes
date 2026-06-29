@@ -27,15 +27,21 @@ export class ActiveRestaurantService {
     () => this.loaded() && this.hasMultiple() && this.activeRestaurantId() === null,
   );
 
-  /** Carga los locales del usuario. Si solo tiene uno, lo fija como activo. */
-  async load(): Promise<void> {
+  /**
+   * Carga los locales del usuario. Si solo tiene uno, lo fija como activo.
+   * Si se pasa `preferredId` (p. ej. sugerido por el backend tras un
+   * refresh), se usa siempre que siga siendo válido.
+   */
+  async load(preferredId: string | null = null): Promise<void> {
     try {
       const list = await this.api.listMine();
       this.restaurants.set(list);
 
-      const current = this.activeRestaurantId();
-      const stillValid = current !== null && list.some((r) => r.id === current);
-      if (!stillValid) {
+      const candidate = preferredId ?? this.activeRestaurantId();
+      const stillValid = candidate !== null && list.some((r) => r.id === candidate);
+      if (stillValid) {
+        this.setActive(candidate);
+      } else {
         const next = list.length === 1 ? (list[0]?.id ?? null) : null;
         this.setActive(next);
       }

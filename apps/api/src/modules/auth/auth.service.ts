@@ -190,8 +190,15 @@ export class AuthService {
 
   /**
    * Devuelve la información del usuario para `/auth/me` junto con sus locales
-   * y el local activo (si la petición trae `X-Restaurant-Id` y el usuario
-   * tiene acceso).
+   * y el local activo.
+   *
+   - Si la petición trae `X-Restaurant-Id` y el usuario tiene acceso, se
+   *   usa ese.
+   * - Si no, se usa `user.lastRestaurantId` (persistido por el LocalGuard)
+   *   siempre que siga siendo válido. Esto permite que la sesión se
+   *   rehidrate con el último local activo tras recargar la pestaña.
+   * - Si ninguno es válido, se devuelve `activeRestaurantId: null` y el
+   *   frontend muestra la pantalla de selección si hay varios locales.
    */
   async me(userId: string, role: UserRole, activeRestaurantId: string | null): Promise<MeResponse> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -203,16 +210,18 @@ export class AuthService {
     const memberCount = await this.prisma.restaurantMember.count({ where: { userId } });
     const isSuperAdmin = role === 'ADMIN' && memberCount === 0;
 
+    // Si no hay header X-Restaurant-Id, intenta con el último local persistido.
+    const candidateId = activeRestaurantId ?? user.lastRestaurantId ?? null;
     let resolvedActive: string | null = null;
-    if (activeRestaurantId) {
+    if (candidateId) {
       const allowed = isSuperAdmin
-        ? await this.prisma.restaurant.findUnique({ where: { id: activeRestaurantId } })
+        ? await this.prisma.restaurant.findUnique({ where: { id: candidateId } })
         : await this.prisma.restaurantMember.findUnique({
-            where: { userId_restaurantId: { userId, restaurantId: activeRestaurantId } },
+            where: { userId_restaurantId: { userId, restaurantId: candidateId } },
           });
       if (allowed) {
         const isMember = isSuperAdmin ? true : (allowed as { active: boolean }).active;
-        if (isMember) resolvedActive = activeRestaurantId;
+        if (isMember) resolvedActive = candidateId;
       }
     }
 

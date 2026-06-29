@@ -37,7 +37,10 @@ export const appConfig: ApplicationConfig = {
         async () => {
           const ok = await auth.bootstrap();
           if (ok) {
-            await active.load();
+            // Pide al backend el local activo persistido (lastRestaurantId
+            // del usuario) y lo aplica si el usuario tiene acceso.
+            const me = await auth.refreshMe();
+            await active.load(me?.activeRestaurantId ?? null);
           } else {
             void theme.loadTenant();
           }

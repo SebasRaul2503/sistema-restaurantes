@@ -86,6 +86,11 @@ model User {
   /// `RestaurantMember.role`.
   role         UserRole @default(OPERATOR)
   active       Boolean  @default(true)
+  /// Último local activo del usuario. El LocalGuard lo actualiza cuando
+  /// llega un X-Restaurant-Id válido. Permite que tras recargar la pestaña
+  /// (o cerrar/abrir el navegador) la sesión se rehidrate con el mismo
+  /// local que el usuario dejó abierto.
+  lastRestaurantId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
