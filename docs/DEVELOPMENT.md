@@ -61,12 +61,17 @@ pnpm dev:web     # Angular http://localhost:4200 (watch, proxy /api → :3000)
 > **compilado** (`packages/shared-types/dist`). Si editas ese paquete, recompílalo:
 > `pnpm --filter @restaurante/shared-types build`.
 
-### Credenciales de ejemplo (seed)
+### Credenciales de ejemplo (seed multi-local)
 
-| Rol | Correo | Contraseña |
-|-----|--------|-----------|
-| Administrador | `admin@restaurante.pe` | `Admin1234` |
-| Mesero / Operador | `mesero@restaurante.pe` | `Mesero1234` |
+El seed crea **2 locales** (`miraflores`, `surco`) con cartas y mesas
+independientes, y los siguientes usuarios:
+
+| Rol | Correo | Contraseña | Acceso |
+|-----|--------|-----------|--------|
+| Superadmin | `admin@restaurante.pe` | `Admin1234` | Ve y opera **todos** los locales (sin membresía). |
+| Gerente Miraflores | `gerente.miraflores@restaurante.pe` | `Miraflores1234` | `ADMIN` en `miraflores`. |
+| Gerente Surco | `gerente.surco@restaurante.pe` | `Surco1234` | `ADMIN` en `surco`. |
+| Mesero | `mesero@restaurante.pe` | `Mesero1234` | `OPERATOR` en **ambos** locales. |
 
 ---
 
@@ -152,9 +157,15 @@ Guards, pipe y prefijo `/api` se configuran globalmente en `src/main.ts`.
 - **Autorización:** todo requiere sesión por defecto. Abre rutas con `@Public()`,
   restríngelas con `@Roles(UserRole.ADMIN)`. Inyecta el usuario con
   `@CurrentUser()`.
+- **Scoping por local:** todas las rutas operativas requieren un local activo
+  (header `X-Restaurant-Id`). El `LocalGuard` global lo resuelve y valida el
+  acceso. Inyecta el local con `@CurrentRestaurant('id')`. Marca las rutas que
+  no necesitan local con `@SkipRestaurant()`.
 - **Auditoría:** registra acciones sensibles con
-  `AuditService.record({ userId, action, entity, entityId, metadata })`. Acepta un
-  cliente de transacción para registrar dentro de la misma transacción.
+  `AuditService.record({ userId, action, entity, entityId, restaurantId, metadata })`.
+  Acepta un cliente de transacción para registrar dentro de la misma
+  transacción. `restaurantId` es opcional (null para acciones globales como
+  crear un local).
 - **Validación:** cada DTO usa `class-validator` con **mensajes en español**.
 - **Swagger:** decora con `@ApiTags`, `@ApiBearerAuth`, `@ApiOperation`.
 
