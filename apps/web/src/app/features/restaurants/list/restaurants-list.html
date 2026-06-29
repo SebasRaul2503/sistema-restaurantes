@@ -210,12 +210,20 @@
                       }
                     </td>
                     <td class="t-right">
-                      <button
-                        class="btn btn-ghost btn-sm"
-                        (click)="toggleMemberActive(m)"
-                      >
-                        {{ m.active ? 'Desactivar' : 'Reactivar' }}
-                      </button>
+                      <div class="row-actions">
+                        <button
+                          class="btn btn-ghost btn-sm"
+                          (click)="toggleMemberActive(m)"
+                        >
+                          {{ m.active ? 'Desactivar' : 'Reactivar' }}
+                        </button>
+                        <button
+                          class="btn btn-danger btn-sm"
+                          (click)="removeMember(m)"
+                        >
+                          Quitar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 }

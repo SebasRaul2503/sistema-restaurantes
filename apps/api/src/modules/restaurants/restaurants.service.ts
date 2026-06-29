@@ -223,6 +223,36 @@ export class RestaurantsService {
     return this.toMemberDto(updated);
   }
 
+  /**
+   * Quita al usuario del local (elimina la fila de `restaurant_members`).
+   * El usuario sigue existiendo en `users` y podrá ser re-asignado a este u
+   * otros locales en el futuro.
+   */
+  async removeMember(
+    restaurantId: string,
+    memberId: string,
+    actorId: string,
+  ): Promise<void> {
+    const member = await this.prisma.restaurantMember.findFirst({
+      where: { id: memberId, restaurantId },
+      include: { user: { select: { name: true } } },
+    });
+    if (!member) {
+      throw new NotFoundException('Membresía no encontrada.');
+    }
+
+    await this.prisma.restaurantMember.delete({ where: { id: memberId } });
+
+    await this.audit.record({
+      userId: actorId,
+      action: 'MEMBER_REMOVED',
+      entity: 'RestaurantMember',
+      entityId: memberId,
+      restaurantId,
+      metadata: { userName: member.user.name },
+    });
+  }
+
   // ----------------------------------------------------------------------
   // Marca efectiva: override del local con fallback al tenant
   // ----------------------------------------------------------------------

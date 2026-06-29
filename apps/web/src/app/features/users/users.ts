@@ -111,12 +111,15 @@ export class UsersPage implements OnInit {
     }
   }
 
-  // ----- Desactivar -----
-  async deactivate(user: UserDto): Promise<void> {
-    if (!confirm(`¿Desactivar al usuario "${user.name}"?`)) return;
+  // ----- Activar / Desactivar -----
+  async toggleActive(user: UserDto): Promise<void> {
+    const action = user.active ? 'desactivar' : 'reactivar';
+    if (!confirm(`¿${action.charAt(0).toUpperCase() + action.slice(1)} al usuario "${user.name}"?`)) {
+      return;
+    }
     try {
-      await this.usersApi.deactivate(user.id);
-      this.notify.success('Usuario desactivado');
+      await this.usersApi.update(user.id, { active: !user.active });
+      this.notify.success(user.active ? 'Usuario desactivado' : 'Usuario reactivado');
       await this.load();
     } catch {
       // El interceptor muestra el toast de error (p. ej. autodesactivación).

@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -105,6 +108,18 @@ export class RestaurantsController {
     @CurrentUser() user: RequestUser,
   ): Promise<RestaurantMemberDto> {
     return this.restaurants.updateMember(id, memberId, dto, user.id);
+  }
+
+  @Delete(':id/members/:memberId')
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Quitar un miembro del local (ADMIN)' })
+  removeMember(
+    @Param('id') id: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<void> {
+    return this.restaurants.removeMember(id, memberId, user.id);
   }
 
   // ----------------------------------------------------------------------

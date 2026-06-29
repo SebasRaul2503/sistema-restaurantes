@@ -205,6 +205,24 @@ export class RestaurantsListPage implements OnInit {
     }
   }
 
+  async removeMember(member: RestaurantMemberDto): Promise<void> {
+    if (
+      !confirm(
+        `¿Quitar a "${member.userName}" del local? El usuario seguirá existiendo y podrá reasignarse.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await this.api.removeMember(member.restaurantId, member.id);
+      this.notify.success('Miembro quitado del local');
+      await this.loadMembers(member.restaurantId);
+      void this.loadUsers();
+    } catch {
+      // interceptor
+    }
+  }
+
   setNewMemberUser(v: string): void { this.newMemberUserId.set(v); }
   setNewMemberRole(v: UserRole): void { this.newMemberRole.set(v); }
 

@@ -189,4 +189,10 @@
 
 .dim { opacity: 0.6; }
 
+.row-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
 .pad { padding: 1rem; }

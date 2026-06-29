@@ -66,4 +66,10 @@ export class RestaurantsApi {
       this.api.patch<RestaurantMemberDto>(`/restaurants/${restaurantId}/members/${memberId}`, dto),
     );
   }
+
+  removeMember(restaurantId: string, memberId: string): Promise<void> {
+    return firstValueFrom(
+      this.api.delete<void>(`/restaurants/${restaurantId}/members/${memberId}`),
+    );
+  }
 }
