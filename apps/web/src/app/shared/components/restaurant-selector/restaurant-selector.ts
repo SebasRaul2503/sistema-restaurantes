@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, ElementRef, HostListener, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ActiveRestaurantService } from '../../../core/services/active-restaurant.service';
 import { Icon } from '../icon/icon';
@@ -14,6 +14,7 @@ import { MyRestaurantDto } from '@restaurante/shared-types';
 export class RestaurantSelector {
   private readonly active = inject(ActiveRestaurantService);
   private readonly router = inject(Router);
+  private readonly host = inject(ElementRef<HTMLElement>);
 
   readonly restaurants = this.active.restaurants;
   readonly activeId = this.active.activeRestaurantId;
@@ -48,5 +49,21 @@ export class RestaurantSelector {
   goToSelect(): void {
     this.close();
     void this.router.navigate(['/seleccionar-local']);
+  }
+
+  /** Cierra el menú al hacer clic fuera del componente. */
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.open()) return;
+    const target = event.target as Node | null;
+    if (target && !this.host.nativeElement.contains(target)) {
+      this.close();
+    }
+  }
+
+  /** Cierra con Escape. */
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.open()) this.close();
   }
 }
