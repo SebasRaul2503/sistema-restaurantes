@@ -5,12 +5,16 @@ Perú — cevicherías, pollerías, cafés y menús. Administra mesas, pedidos, 
 cocina, división de cuentas, pagos y caja diaria. **No es un POS de facturación
 electrónica**: se enfoca en la operación del salón.
 
-> Interfaz 100 % en español · Marca configurable · Listo para demostrar y vender.
+> Interfaz 100 % en español · Multi-local · Marca configurable por local · Listo
+> para demostrar y vender.
 
 ---
 
 ## ✨ Funcionalidades
 
+- **Multi-local** (sucursales): opera N locales bajo un mismo tenant, cada uno
+  con carta, mesas, pedidos, caja y membresías propios. La marca visual
+  hereda del tenant y puede sobreescribirse por local.
 - **Panel** con mesas libres/ocupadas, pedidos activos, platos en preparación e
   ingresos del día y del mes.
 - **Salón visual** (vista tipo plano) con estados: Libre, Ocupada, Reservada,
@@ -24,13 +28,15 @@ electrónica**: se enfoca en la operación del salón.
   escenarios mixtos.
 - **Pagos** en Efectivo, Yape, Plin y Tarjeta, con pagos **parciales y combinados**;
   el pedido se cierra automáticamente al saldar.
-- **Caja diaria**: apertura, ingresos/egresos, cierre con monto esperado vs. real
-  y diferencia.
-- **Reportes**: ingresos diarios/semanales/mensuales, platos más vendidos, mesas
-  más usadas e ingresos por método de pago.
-- **Auditoría** de acciones sensibles (usuario, acción, fecha/hora).
-- **Configuración de marca**: nombre, logo, colores; el tema se adapta a toda la app.
-- **Roles**: Administrador (acceso total) y Mesero / Operador (operación diaria).
+- **Caja diaria por local**: apertura, ingresos/egresos, cierre con monto
+  esperado vs. real y diferencia.
+- **Reportes por local**: ingresos diarios/semanales/mensuales, platos más
+  vendidos, mesas más usadas e ingresos por método de pago.
+- **Auditoría** de acciones sensibles (usuario, acción, fecha/hora, local).
+- **Configuración de marca por local**: nombre, logo, colores; el tema se
+  adapta a toda la app.
+- **Roles**: Administrador (acceso total) y Mesero / Operador (operación
+  diaria). Un usuario puede ser ADMIN en un local y OPERATOR en otro.
 
 ---
 
@@ -121,17 +127,19 @@ apps/
       common/               # decoradores, guards, utilidades
       core/prisma/          # acceso a base de datos
       config/               # configuración tipada
-      modules/              # auth, users, restaurant-settings, tables, menu,
-                            # orders (+ billing), kitchen, payments,
-                            # cash-register, reports, audit
-    prisma/                 # schema, migraciones y seed
+      modules/              # auth, users, restaurants, restaurant-settings,
+                            # tables, menu, orders (+ billing), kitchen,
+                            # payments, cash-register, reports, audit
+    prisma/                 # schema, migraciones y seed multi-local
   web/                      # Angular — frontend
     src/app/
       core/                 # servicios, guards, interceptores, clientes API
-      shared/               # componentes/pipes reutilizables (Icon, pipes)
-      layouts/              # shell principal
+      shared/               # componentes/pipes reutilizables (Icon, pipes,
+                            # selector de local)
+      layouts/              # shell principal (con selector de local)
       features/             # dashboard, tables, kitchen, orders, menu,
-                            # cash, reports, settings, users, auth
+                            # cash, reports, settings, users, auth,
+                            # restaurants (CRUD + gestión de miembros)
 packages/
   shared-types/             # enums, DTOs y etiquetas en español (web ↔ api)
 docker/                     # (reservado)
@@ -144,11 +152,17 @@ docker-compose.yml
 ## 🔌 Resumen de la API
 
 Todas las rutas viven bajo el prefijo `/api`. Documentación interactiva en
-`/api/docs`. Autenticación con `Authorization: Bearer <token>`.
+`/api/docs`. Autenticación con `Authorization: Bearer <token>`. Las rutas
+operativas requieren el header `X-Restaurant-Id` (inyectado
+automáticamente por el frontend).
 
 | Módulo | Rutas principales |
 |--------|-------------------|
 | Auth | `POST /auth/login`, `POST /auth/refresh`, `GET /auth/me` |
+| Mis locales | `GET /my-restaurants` |
+| Locales (ADMIN) | `GET/POST /restaurants`, `PATCH /restaurants/:id` |
+| Marca del local | `GET /restaurants/:id/theme` |
+| Membresías (ADMIN) | `GET/POST /restaurants/:id/members`, `PATCH /restaurants/:id/members/:memberId`, `DELETE /restaurants/:id/members/:memberId` |
 | Mesas | `GET/POST /tables`, `PATCH /tables/:id/status` |
 | Carta | `GET/POST /menu/categories`, `GET/POST /menu/dishes` |
 | Pedidos | `POST /orders`, `POST /orders/:id/items`, `POST /orders/items/:id/replace` |
