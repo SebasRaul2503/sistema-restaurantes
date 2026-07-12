@@ -91,6 +91,27 @@ El seed inicial crea lo mínimo para arrancar:
 
 > Cambie estos valores y los secretos JWT en `.env` antes de usar en producción.
 
+### Despliegue en producción con Traefik
+
+```bash
+# 1. Una red Docker externa llamada 'traefik-public' (gestionada por Traefik)
+docker network create traefik-public
+
+# 2. Configurar .env (ver .env.example):
+#    - POSTGRES_PASSWORD
+#    - JWT_ACCESS_SECRET, JWT_REFRESH_SECRET (openssl rand -base64 48)
+#    - CORS_ORIGIN=https://tu-dominio.com
+#    - DOMAIN=tu-dominio.com
+#    - COOKIE_SECURE=true
+
+# 3. Levantar
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Solo el contenedor `web` se expone a Internet (HTTPS automático con Let's Encrypt
+vía Traefik). La API queda en una red interna. Más detalles en
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ---
 
 ## 🛠️ Desarrollo local (sin Docker)
