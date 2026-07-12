@@ -8,6 +8,7 @@ import {
 } from '@restaurante/shared-types';
 import { RestaurantsApi } from '../../../core/data/restaurants.api';
 import { UsersApi } from '../../../core/data/users.api';
+import { ConfirmService } from '../../../core/services/confirm.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { Icon } from '../../../shared/components/icon/icon';
 import { EnumLabelPipe } from '../../../shared/pipes/enum-label.pipe';
@@ -33,6 +34,7 @@ export class RestaurantsListPage implements OnInit {
   private readonly api = inject(RestaurantsApi);
   private readonly usersApi = inject(UsersApi);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly UserRole = UserRole;
 
@@ -148,13 +150,19 @@ export class RestaurantsListPage implements OnInit {
   // ----- Activar/Desactivar -----
 
   async toggleActive(r: RestaurantDto): Promise<void> {
-    const msg = r.active
-      ? `¿Desactivar el local "${r.name}"? Los usuarios miembros no podrán operar en él.`
-      : `¿Reactivar el local "${r.name}"?`;
-    if (!confirm(msg)) return;
+    const isActive = r.active;
+    const ok = await this.confirm.confirm({
+      title: isActive ? 'Desactivar local' : 'Reactivar local',
+      message: isActive
+        ? `¿Desactivar el local "${r.name}"? Los usuarios miembros no podrán operar en él.`
+        : `¿Reactivar el local "${r.name}"?`,
+      confirmText: isActive ? 'Desactivar' : 'Reactivar',
+      variant: isActive ? 'danger' : 'info',
+    });
+    if (!ok) return;
     try {
-      await this.api.update(r.id, { active: !r.active });
-      this.notify.success(r.active ? 'Local desactivado' : 'Local reactivado');
+      await this.api.update(r.id, { active: !isActive });
+      this.notify.success(isActive ? 'Local desactivado' : 'Local reactivado');
       await this.loadRestaurants();
       if (this.selectedId() === r.id) {
         void this.loadMembers(r.id);
@@ -206,13 +214,13 @@ export class RestaurantsListPage implements OnInit {
   }
 
   async removeMember(member: RestaurantMemberDto): Promise<void> {
-    if (
-      !confirm(
-        `¿Quitar a "${member.userName}" del local? El usuario seguirá existiendo y podrá reasignarse.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await this.confirm.confirm({
+      title: 'Quitar miembro del local',
+      message: `¿Quitar a "${member.userName}" del local? El usuario seguirá existiendo y podrá reasignarse.`,
+      confirmText: 'Quitar del local',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await this.api.removeMember(member.restaurantId, member.id);
       this.notify.success('Miembro quitado del local');

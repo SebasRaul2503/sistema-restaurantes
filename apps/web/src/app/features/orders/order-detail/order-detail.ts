@@ -11,6 +11,7 @@ import {
 } from '@restaurante/shared-types';
 import { OrdersApi } from '../../../core/data/orders.api';
 import { MenuApi } from '../../../core/data/menu.api';
+import { ConfirmService } from '../../../core/services/confirm.service';
 import { ActiveRestaurantService } from '../../../core/services/active-restaurant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SolesPipe } from '../../../shared/pipes/soles.pipe';
@@ -35,6 +36,7 @@ export class OrderDetailPage {
   private readonly router = inject(Router);
   private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly OrderStatus = OrderStatus;
 
@@ -165,7 +167,13 @@ export class OrderDetailPage {
   }
 
   async cancelOrder(): Promise<void> {
-    if (!confirm('¿Anular este pedido? Esta acción libera la mesa.')) return;
+    const ok = await this.confirm.confirm({
+      title: 'Anular pedido',
+      message: '¿Anular este pedido? Esta acción libera la mesa.',
+      confirmText: 'Anular pedido',
+      variant: 'danger',
+    });
+    if (!ok) return;
     await this.ordersApi.cancel(this.orderId);
     this.notify.success('Pedido anulado.');
     void this.router.navigate(['/mesas']);

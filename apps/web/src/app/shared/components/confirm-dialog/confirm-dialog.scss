@@ -1,0 +1,85 @@
+:host {
+  display: contents;
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fade-in 0.15s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.confirm-card {
+  background: var(--color-surface-1, #fff);
+  border-radius: var(--radius-lg, 16px);
+  padding: 1.6rem 1.4rem 1.2rem;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  text-align: center;
+  animation: pop-in 0.18s ease-out;
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.confirm-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.9rem;
+
+  &.variant-danger {
+    background: color-mix(in srgb, var(--color-danger, #c53030) 14%, transparent);
+    color: var(--color-danger, #c53030);
+  }
+
+  &.variant-warning {
+    background: color-mix(in srgb, var(--color-warning, #d97706) 14%, transparent);
+    color: var(--color-warning, #d97706);
+  }
+
+  &.variant-info {
+    background: color-mix(in srgb, var(--color-primary, #E63946) 14%, transparent);
+    color: var(--color-primary, #E63946);
+  }
+}
+
+.confirm-title {
+  margin: 0 0 0.5rem;
+  font-family: 'Fraunces', serif;
+  font-size: 1.25rem;
+  color: var(--ink, #1a202c);
+}
+
+.confirm-message {
+  margin: 0 0 1.2rem;
+  color: var(--muted, #64748b);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.confirm-actions .btn {
+  min-width: 110px;
+}

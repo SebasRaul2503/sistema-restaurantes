@@ -1,0 +1,19 @@
+@if (state().open) {
+  <div class="confirm-backdrop" (click)="confirmService.cancel()">
+    <div class="confirm-card" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <div class="confirm-icon" [class]="'variant-' + state().variant">
+        <app-icon [name]="iconName()" [size]="24" />
+      </div>
+      <h3 class="confirm-title">{{ state().title }}</h3>
+      <p class="confirm-message">{{ state().message }}</p>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" type="button" (click)="confirmService.cancel()">
+          {{ state().cancelText }}
+        </button>
+        <button class="btn" type="button" [class]="variantClass()" (click)="confirmService.accept()">
+          {{ state().confirmText }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

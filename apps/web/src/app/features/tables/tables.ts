@@ -10,6 +10,7 @@ import { TablesApi } from '../../core/data/tables.api';
 import { OrdersApi } from '../../core/data/orders.api';
 import { AuthService } from '../../core/services/auth.service';
 import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
@@ -42,6 +43,7 @@ export class TablesPage {
   private readonly auth = inject(AuthService);
   private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
   private readonly router = inject(Router);
 
   readonly isAdmin = this.auth.isAdmin;
@@ -215,6 +217,13 @@ export class TablesPage {
   }
 
   async removeTable(card: TableCard): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Desactivar mesa',
+      message: `¿Desactivar la mesa ${card.number}? Los pedidos en curso no se ven afectados.`,
+      confirmText: 'Desactivar',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await this.tablesApi.remove(card.id);
       this.notify.success(`Mesa ${card.number} desactivada`);

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DishDto, MenuCategoryDto } from '@restaurante/shared-types';
 import { CategoryPayload, DishPayload, MenuApi } from '../../core/data/menu.api';
 import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
 import { Icon } from '../../shared/components/icon/icon';
@@ -19,6 +20,7 @@ export class MenuPage {
   private readonly menu = inject(MenuApi);
   private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly categories = signal<MenuCategoryDto[]>([]);
   readonly dishes = signal<DishDto[]>([]);
@@ -149,6 +151,13 @@ export class MenuPage {
   }
 
   async removeCategory(category: MenuCategoryDto): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Eliminar categoría',
+      message: `¿Eliminar la categoría "${category.name}"? Si tiene platos asociados, se desactiva en lugar de eliminarse.`,
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    });
+    if (!ok) return;
     this.saving.set(true);
     try {
       await this.menu.deleteCategory(category.id);
@@ -240,6 +249,13 @@ export class MenuPage {
   }
 
   async removeDish(dish: DishDto): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Eliminar plato',
+      message: `¿Eliminar el plato "${dish.name}"? El plato se desactiva (preserva el historial de pedidos).`,
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    });
+    if (!ok) return;
     this.saving.set(true);
     try {
       await this.menu.deleteDish(dish.id);

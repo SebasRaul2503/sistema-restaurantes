@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { UserDto, UserRole } from '@restaurante/shared-types';
 import { CreateUserPayload, UpdateUserPayload, UsersApi } from '../../core/data/users.api';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
 
@@ -23,6 +24,7 @@ interface EditState {
 export class UsersPage implements OnInit {
   private readonly usersApi = inject(UsersApi);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly UserRole = UserRole;
 
@@ -111,18 +113,25 @@ export class UsersPage implements OnInit {
     }
   }
 
+  // ----- Eliminar (no usado: ya cubierto por toggleActive) -----
+  // (placeholder para mantener orden; eliminación real no soportada)
+
   // ----- Activar / Desactivar -----
   async toggleActive(user: UserDto): Promise<void> {
-    const action = user.active ? 'desactivar' : 'reactivar';
-    if (!confirm(`¿${action.charAt(0).toUpperCase() + action.slice(1)} al usuario "${user.name}"?`)) {
-      return;
-    }
+    const isActive = user.active;
+    const ok = await this.confirm.confirm({
+      title: isActive ? 'Desactivar usuario' : 'Reactivar usuario',
+      message: `¿${isActive ? 'Desactivar' : 'Reactivar'} al usuario "${user.name}"?`,
+      confirmText: isActive ? 'Desactivar' : 'Reactivar',
+      variant: isActive ? 'danger' : 'info',
+    });
+    if (!ok) return;
     try {
-      await this.usersApi.update(user.id, { active: !user.active });
-      this.notify.success(user.active ? 'Usuario desactivado' : 'Usuario reactivado');
+      await this.usersApi.update(user.id, { active: !isActive });
+      this.notify.success(isActive ? 'Usuario desactivado' : 'Usuario reactivado');
       await this.load();
     } catch {
-      // El interceptor muestra el toast de error (p. ej. autodesactivación).
+      // El interceptor muestra el toast de error.
     }
   }
 
