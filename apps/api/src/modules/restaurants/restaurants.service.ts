@@ -61,7 +61,11 @@ export class RestaurantsService {
   }
 
   async listForSuperAdmin(): Promise<MyRestaurantDto[]> {
+    // Solo locales activos: un local desactivado no debe aparecer en el
+    // selector aunque el usuario sea superadmin (evita confusión y
+    // operaciones accidentales sobre locales dados de baja).
     const restaurants = await this.prisma.restaurant.findMany({
+      where: { active: true },
       orderBy: { name: 'asc' },
     });
     return restaurants.map((r) => this.toMyRestaurantDto(r, null, null));

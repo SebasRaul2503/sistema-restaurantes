@@ -61,18 +61,30 @@ export class LocalGuard implements CanActivate {
       (await this.prisma.restaurantMember.count({ where: { userId: user.id } })) === 0;
 
     if (isSuperAdmin) {
-      const exists = await this.prisma.restaurant.findUnique({ where: { id: requestedId } });
-      if (!exists) throw new ForbiddenException('Local no encontrado.');
+      const restaurant = await this.prisma.restaurant.findUnique({
+        where: { id: requestedId },
+        select: { id: true, active: true },
+      });
+      if (!restaurant) throw new ForbiddenException('Local no encontrado.');
+      if (!restaurant.active) {
+        throw new ForbiddenException('El local está desactivado.');
+      }
       request.restaurant = { id: requestedId, isSuperAdmin: true };
       await this.persistLastRestaurant(user.id, requestedId);
       return true;
     }
 
+    // Traemos también el restaurante para validar `active`. Si el local fue
+    // desactivado, rechazamos incluso si la membresía sigue activa.
     const member = await this.prisma.restaurantMember.findUnique({
       where: { userId_restaurantId: { userId: user.id, restaurantId: requestedId } },
+      include: { restaurant: { select: { active: true } } },
     });
     if (!member || !member.active) {
       throw new ForbiddenException('No tiene acceso a este local.');
+    }
+    if (!member.restaurant.active) {
+      throw new ForbiddenException('El local está desactivado.');
     }
 
     request.restaurant = { id: requestedId, isSuperAdmin: false };

@@ -211,17 +211,22 @@ export class AuthService {
     const isSuperAdmin = role === 'ADMIN' && memberCount === 0;
 
     // Si no hay header X-Restaurant-Id, intenta con el último local persistido.
+    // Si el local sugerido está desactivado, no se sugiere.
     const candidateId = activeRestaurantId ?? user.lastRestaurantId ?? null;
     let resolvedActive: string | null = null;
     if (candidateId) {
-      const allowed = isSuperAdmin
-        ? await this.prisma.restaurant.findUnique({ where: { id: candidateId } })
-        : await this.prisma.restaurantMember.findUnique({
-            where: { userId_restaurantId: { userId, restaurantId: candidateId } },
-          });
-      if (allowed) {
-        const isMember = isSuperAdmin ? true : (allowed as { active: boolean }).active;
-        if (isMember) resolvedActive = candidateId;
+      if (isSuperAdmin) {
+        const r = await this.prisma.restaurant.findUnique({
+          where: { id: candidateId },
+          select: { id: true, active: true },
+        });
+        if (r?.active) resolvedActive = candidateId;
+      } else {
+        const m = await this.prisma.restaurantMember.findUnique({
+          where: { userId_restaurantId: { userId, restaurantId: candidateId } },
+          include: { restaurant: { select: { active: true } } },
+        });
+        if (m?.active && m.restaurant.active) resolvedActive = candidateId;
       }
     }
 
