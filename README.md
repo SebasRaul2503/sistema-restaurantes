@@ -78,18 +78,16 @@ automáticamente. Luego abra:
 
 ### Credenciales iniciales
 
-El seed crea **2 locales** (`miraflores`, `surco`) con cartas y mesas
-independientes, y los siguientes usuarios:
+El seed inicial crea lo mínimo para arrancar:
 
-| Rol | Correo | Contraseña | Acceso |
-|-----|--------|-----------|--------|
-| Superadmin | `admin@restaurante.pe` | `Admin1234` | Ve y opera **todos** los locales. |
-| Gerente Miraflores | `gerente.miraflores@restaurante.pe` | `Miraflores1234` | `ADMIN` en `miraflores`. |
-| Gerente Surco | `gerente.surco@restaurante.pe` | `Surco1234` | `ADMIN` en `surco`. |
-| Mesero | `mesero@restaurante.pe` | `Mesero1234` | `OPERATOR` en **ambos** locales. |
+- **1 usuario administrador** (superadmin — sin membresía, ve y opera todos los locales).
+- **1 local** llamado `principal` (puedes agregar más desde `/locales`).
+- **1 mesa** registrada.
+- **4 categorías base** del sistema (Entradas, Platos principales, Bebidas, Postres) **sin platos**.
 
-Tras iniciar sesión, si tienes más de un local, selecciona con cuál operarás en
-el selector del topbar (o en `/seleccionar-local`).
+| Rol | Correo | Contraseña |
+|-----|--------|-----------|
+| Administrador | `admin@restaurante.pe` | `Admin1234` |
 
 > Cambie estos valores y los secretos JWT en `.env` antes de usar en producción.
 

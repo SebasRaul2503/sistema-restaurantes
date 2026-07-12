@@ -61,17 +61,21 @@ pnpm dev:web     # Angular http://localhost:4200 (watch, proxy /api → :3000)
 > **compilado** (`packages/shared-types/dist`). Si editas ese paquete, recompílalo:
 > `pnpm --filter @restaurante/shared-types build`.
 
-### Credenciales de ejemplo (seed multi-local)
+### Credenciales de ejemplo (seed inicial)
 
-El seed crea **2 locales** (`miraflores`, `surco`) con cartas y mesas
-independientes, y los siguientes usuarios:
+El seed inicial crea lo mínimo para arrancar el sistema por primera vez:
 
-| Rol | Correo | Contraseña | Acceso |
-|-----|--------|-----------|--------|
-| Superadmin | `admin@restaurante.pe` | `Admin1234` | Ve y opera **todos** los locales (sin membresía). |
-| Gerente Miraflores | `gerente.miraflores@restaurante.pe` | `Miraflores1234` | `ADMIN` en `miraflores`. |
-| Gerente Surco | `gerente.surco@restaurante.pe` | `Surco1234` | `ADMIN` en `surco`. |
-| Mesero | `mesero@restaurante.pe` | `Mesero1234` | `OPERATOR` en **ambos** locales. |
+- **1 usuario administrador** (superadmin — sin membresía, ve y opera todos los locales).
+- **1 local** llamado `principal` (puedes agregar más desde la pantalla `/locales`).
+- **1 mesa** registrada.
+- **4 categorías base** del sistema (Entradas, Platos principales, Bebidas, Postres) **sin platos**.
+
+| Rol | Correo | Contraseña |
+|-----|--------|-----------|
+| Administrador | `admin@restaurante.pe` | `Admin1234` |
+
+Tras el primer login, completa la configuración desde la web: crea usuarios,
+agrega mesas, platos y locales adicionales según necesidad.
 
 ---
 
