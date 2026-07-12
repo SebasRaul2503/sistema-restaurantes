@@ -9,6 +9,7 @@ import {
 } from '@restaurante/shared-types';
 import { ActiveRestaurantService } from './active-restaurant.service';
 import { ApiService } from './api.service';
+import { ConfirmService } from './confirm.service';
 
 /**
  * Estado de autenticación basado en señales. Datos sensibles (access token,
@@ -21,6 +22,7 @@ export class AuthService {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly activeRestaurant = inject(ActiveRestaurantService);
+  private readonly confirm = inject(ConfirmService);
 
   /** Access token en memoria. Se pierde al cerrar la pestaña. */
   private readonly _accessToken = signal<string | null>(null);
@@ -96,6 +98,23 @@ export class AuthService {
     this.clearSession();
     this.activeRestaurant.clear();
     void this.router.navigate(['/ingresar']);
+  }
+
+  /**
+   * Variante con confirmación: muestra el diálogo modal antes de cerrar
+   * sesión. Útil para el botón "Salir" del shell, donde un clic de
+   * barrer no debe cerrar la sesión sin querer.
+   */
+  async confirmAndLogout(): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Cerrar sesión',
+      message: '¿Estás seguro de que quieres cerrar la sesión? Tendrás que volver a iniciar sesión para continuar.',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    await this.logout();
   }
 
   private setSession(accessToken: string, user: AuthUser): void {

@@ -70,7 +70,7 @@ export class MainLayout {
   }
 
   logout(): void {
-    this.auth.logout();
+    void this.auth.confirmAndLogout();
   }
 
   initials(name: string | undefined): string {
