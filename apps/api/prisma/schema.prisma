@@ -78,7 +78,12 @@ enum CashSessionStatus {
 
 model User {
   id           String   @id @default(uuid())
-  email        String   @unique
+  /// Email opcional. Para usuarios internos (meseros) que solo usan
+  /// username para entrar, queda null.
+  email        String?  @unique
+  /// Username opcional. Para usuarios externos (admin) que solo usan email.
+  /// Único global. Case-insensitive en la app (se guarda siempre en minúsculas).
+  username     String?  @unique
   passwordHash String
   name         String
   /// Rol del usuario a nivel global. Los ADMIN sin `RestaurantMember` son

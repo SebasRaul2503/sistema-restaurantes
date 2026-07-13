@@ -50,6 +50,11 @@ export class UsersPage implements OnInit {
     }
   }
 
+  /** Identificador mostrado en la tabla: email o username. */
+  identifierOf(user: UserDto): string {
+    return user.email ?? user.username ?? '—';
+  }
+
   // ----- Crear -----
   toggleCreate(): void {
     this.editing.set(null);
@@ -113,9 +118,6 @@ export class UsersPage implements OnInit {
     }
   }
 
-  // ----- Eliminar (no usado: ya cubierto por toggleActive) -----
-  // (placeholder para mantener orden; eliminación real no soportada)
-
   // ----- Activar / Desactivar -----
   async toggleActive(user: UserDto): Promise<void> {
     const isActive = user.active;
@@ -136,7 +138,12 @@ export class UsersPage implements OnInit {
   }
 
   // Setters de campo (las plantillas de Angular no admiten literales de objeto).
-  setNewEmail(v: string): void { this.newUser.update((u) => ({ ...u, email: v })); }
+  setNewEmail(v: string): void {
+    this.newUser.update((u) => ({ ...u, email: v.trim() ? v.trim().toLowerCase() : v }));
+  }
+  setNewUsername(v: string): void {
+    this.newUser.update((u) => ({ ...u, username: v.trim() ? v.trim().toLowerCase() : v }));
+  }
   setNewName(v: string): void { this.newUser.update((u) => ({ ...u, name: v })); }
   setNewPassword(v: string): void { this.newUser.update((u) => ({ ...u, password: v })); }
   setNewRole(v: UserRole): void { this.newUser.update((u) => ({ ...u, role: v })); }
@@ -147,6 +154,6 @@ export class UsersPage implements OnInit {
   setEditPassword(v: string): void { this.editing.update((e) => (e ? { ...e, password: v } : e)); }
 
   private emptyCreate(): CreateUserPayload {
-    return { email: '', name: '', password: '', role: UserRole.OPERATOR };
+    return { email: '', username: '', name: '', password: '', role: UserRole.OPERATOR };
   }
 }

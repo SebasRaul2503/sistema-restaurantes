@@ -17,7 +17,7 @@ export interface RefreshJwtPayload extends JwtPayload {
 interface LoginResult {
   accessToken: string;
   refreshToken: string;
-  user: { id: string; email: string; name: string; role: UserRole };
+  user: { id: string; email: string | null; username: string | null; name: string; role: UserRole };
 }
 
 @Injectable()
@@ -30,8 +30,15 @@ export class AuthService {
     private readonly restaurants: RestaurantsService,
   ) {}
 
-  async login(email: string, password: string): Promise<LoginResult> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+  async login(identifier: string, password: string): Promise<LoginResult> {
+    // El identificador puede ser email o username. Detectamos por la
+    // presencia de '@' para minimizar queries en el caso común.
+    const isEmail = identifier.includes('@');
+    const normalized = identifier.trim().toLowerCase();
+    const user = isEmail
+      ? await this.prisma.user.findUnique({ where: { email: normalized } })
+      : await this.prisma.user.findUnique({ where: { username: normalized } });
+
     if (!user || !user.active) {
       throw new UnauthorizedException('Credenciales incorrectas.');
     }
@@ -56,7 +63,13 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        role: user.role as UserRole,
+      },
     };
   }
 
@@ -102,7 +115,13 @@ export class AuthService {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        role: user.role as UserRole,
+      },
     };
   }
 
@@ -146,7 +165,7 @@ export class AuthService {
    */
   private async issueTokens(
     sub: string,
-    email: string,
+    email: string | null,
     role: UserRole,
   ): Promise<{ accessToken: string; refreshToken: string; jti: string }> {
     const accessPayload: JwtPayload = { sub, email, role };
@@ -231,7 +250,13 @@ export class AuthService {
     }
 
     return {
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        role: user.role as UserRole,
+      },
       restaurants,
       activeRestaurantId: resolvedActive,
       isSuperAdmin,

@@ -13,7 +13,10 @@ import {
 
 export interface AuthUser {
   id: string;
-  email: string;
+  /** Email opcional (puede ser null si el usuario solo tiene username). */
+  email: string | null;
+  /** Username opcional (puede ser null si el usuario solo tiene email). */
+  username: string | null;
   name: string;
   role: UserRole;
 }
@@ -60,7 +63,10 @@ export interface RestaurantMemberDto {
   id: string;
   userId: string;
   userName: string;
-  userEmail: string;
+  /** Email del usuario si tiene; si no, null. */
+  userEmail: string | null;
+  /** Username del usuario si tiene; si no, null. */
+  userUsername: string | null;
   restaurantId: string;
   role: UserRole;
   active: boolean;
@@ -126,7 +132,8 @@ export interface MeResponse {
 
 export interface UserDto {
   id: string;
-  email: string;
+  email: string | null;
+  username: string | null;
   name: string;
   role: UserRole;
   active: boolean;

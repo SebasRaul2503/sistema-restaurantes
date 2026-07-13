@@ -4,12 +4,15 @@ import { UserDto, UserRole } from '@restaurante/shared-types';
 import { ApiService } from '../services/api.service';
 
 export interface CreateUserPayload {
-  email: string;
+  email?: string;
+  username?: string;
   name: string;
   password: string;
   role: UserRole;
 }
 export interface UpdateUserPayload {
+  email?: string;
+  username?: string;
   name?: string;
   password?: string;
   role?: UserRole;

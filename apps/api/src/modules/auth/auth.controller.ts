@@ -44,7 +44,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponse> {
-    const result = await this.authService.login(dto.email, dto.password);
+    const result = await this.authService.login(dto.identifier, dto.password);
     if (result.refreshToken) {
       setRefreshCookie(req, res, this.configService, result.refreshToken);
     }

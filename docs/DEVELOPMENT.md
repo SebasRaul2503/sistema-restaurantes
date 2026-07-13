@@ -70,12 +70,33 @@ El seed inicial crea lo mínimo para arrancar el sistema por primera vez:
 - **1 mesa** registrada.
 - **4 categorías base** del sistema (Entradas, Platos principales, Bebidas, Postres) **sin platos**.
 
-| Rol | Correo | Contraseña |
+| Rol | Identificador | Contraseña |
 |-----|--------|-----------|
-| Administrador | `admin@restaurante.pe` | `Admin1234` |
+| Administrador | `admin@restaurante.pe` (email) | `Admin1234` |
 
 Tras el primer login, completa la configuración desde la web: crea usuarios,
 agrega mesas, platos y locales adicionales según necesidad.
+
+### Identificador de login (email o username)
+
+Cualquier usuario se identifica con **email** o **username** (al menos uno
+obligatorio). Los admins suelen usar email; los meseros/operadores pueden
+usar solo un username corto (3-30 caracteres, lowercase, `[a-z0-9_-]`).
+
+```bash
+# Login con email
+POST /auth/login { "identifier": "admin@restaurante.pe", "password": "..." }
+
+# Login con username
+POST /auth/login { "identifier": "jperez", "password": "..." }
+```
+
+El backend detecta el tipo por la presencia de `@`. La búsqueda es
+case-insensitive (siempre se guarda en minúsculas).
+
+Los usernames son únicos globalmente. El admin puede crear usuarios
+desde `/usuarios`; el formulario valida que al menos uno de email/username
+est presente.
 
 ---
 
