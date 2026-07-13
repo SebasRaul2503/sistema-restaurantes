@@ -6,7 +6,8 @@ ruta requiere `Authorization: Bearer <accessToken>`.
 
 **Roles:** _Cualquiera_ = administrador u operador autenticado · _ADMIN_ = solo
 administrador. Los montos se envían/reciben como `number` (soles); las fechas como
-ISO (`yyyy-mm-dd` o ISO datetime).
+ISO-8601 UTC. Los parámetros `from` / `to` en los endpoints de reportes e
+historial se interpretan como **fechas civiles en America/Lima** (UTC-5).
 
 ---
 

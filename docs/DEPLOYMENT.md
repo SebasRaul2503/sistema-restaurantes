@@ -7,6 +7,11 @@ Esta guía cubre los dos modos de despliegue soportados:
 
 ## 1. Desarrollo / Demo
 
+La API corre con `TZ=America/Lima` (UTC-5). En local (sin Docker), asegúrate
+de que tu sistema operativo o la variable `TZ` esté configurada o, mejor,
+confía en que el helper `lima-clock.ts` resuelve la conversión a UTC desde la
+fecha civil peruana.
+
 ```bash
 cp .env.example .env
 docker compose up -d --build
@@ -59,6 +64,11 @@ URLs:
 3. **Puertos 80 y 443** abiertos en el firewall del host (HTTP para el challenge de Let's Encrypt y la redirección a HTTPS).
 
 ### 2.2 Configurar `.env`
+
+El contenedor de la API usa la zona horaria `America/Lima` (UTC-5) definida
+tanto en el `Dockerfile` como en las variables de entorno del servicio `api`.
+Verificar que el host Docker tenga instalados los datos de zona horaria (las
+imágenes Alpine lo incluyen vía el paquete `tzdata`).
 
 ```bash
 cp .env.example .env

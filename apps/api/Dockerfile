@@ -21,9 +21,10 @@ RUN pnpm --filter @restaurante/shared-types build \
 
 # ---------- Etapa de ejecución ----------
 FROM node:20-alpine AS runtime
-RUN corepack enable && apk add --no-cache openssl
+RUN corepack enable && apk add --no-cache openssl tzdata
 WORKDIR /app
 ENV NODE_ENV=production
+ENV TZ=America/Lima
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json

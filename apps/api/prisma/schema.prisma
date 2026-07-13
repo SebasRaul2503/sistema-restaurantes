@@ -3,6 +3,12 @@
 // Fuente de verdad del modelo de datos. Comentarios en español; identificadores
 // en inglés (convención del proyecto).
 //
+// NOTA de zona horaria: todas las columnas DateTime almacenan INSTANTES UTC.
+// Las reglas de negocio que dependen de la fecha civil (día de apertura, mes
+// de reporte, filtros from/to) se resuelven en America/Lima mediante el helper
+// `common/time/lima-clock.ts`.  La presentación al usuario también usa
+// America/Lima (LimaDatePipe en Angular).
+//
 // Soporta múltiples locales/establecimientos (`Restaurant`) bajo un mismo
 // tenant. La marca por defecto vive en `RestaurantSettings` (fila única); cada
 // `Restaurant` puede sobreescribirla. Ver `docs/DATA-MODEL.md`.

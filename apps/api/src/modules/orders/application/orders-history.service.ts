@@ -4,11 +4,15 @@ import { PaginatedOrdersDto, OrderSummaryDto } from '@restaurante/shared-types';
 import { PrismaService } from '../../../core/prisma/prisma.service';
 import { ORDER_INCLUDE } from '../infrastructure/order-include';
 import { toOrderSummary } from '../domain/order-calculator';
+import {
+  endOfCivilDayInLima,
+  startOfCivilDayInLima,
+} from '../../../common/time/lima-clock';
 
 export interface OrdersHistoryFilter {
-  /** ISO date YYYY-MM-DD (inclusive desde 00:00). */
+  /** Fecha civil YYYY-MM-DD en America/Lima (inclusive). */
   from?: string;
-  /** ISO date YYYY-MM-DD (inclusive hasta 23:59:59.999). */
+  /** Fecha civil YYYY-MM-DD en America/Lima (inclusive). */
   to?: string;
   /** 'cerrados' (default), 'anulados', 'todos'. */
   status?: 'cerrados' | 'anulados' | 'todos';
@@ -45,10 +49,10 @@ export class OrdersHistoryService {
     if (filter.from || filter.to) {
       where.closedAt = {};
       if (filter.from) {
-        (where.closedAt as Prisma.DateTimeFilter).gte = new Date(`${filter.from}T00:00:00.000Z`);
+        (where.closedAt as Prisma.DateTimeFilter).gte = startOfCivilDayInLima(filter.from);
       }
       if (filter.to) {
-        (where.closedAt as Prisma.DateTimeFilter).lte = new Date(`${filter.to}T23:59:59.999Z`);
+        (where.closedAt as Prisma.DateTimeFilter).lte = endOfCivilDayInLima(filter.to);
       }
     }
 
