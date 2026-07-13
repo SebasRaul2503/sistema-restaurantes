@@ -65,7 +65,7 @@ export class OrdersHistoryPage implements OnInit {
         pageSize: this.pageSize,
       };
       void this.fetch(f);
-    });
+    }, { allowSignalWrites: true });
   }
 
   ngOnInit(): void {
