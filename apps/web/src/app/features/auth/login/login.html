@@ -12,16 +12,17 @@
 
     <form (ngSubmit)="submit()">
       <div class="field">
-        <label for="email">Correo electrónico</label>
+        <label for="identifier">Usuario o correo</label>
         <input
-          id="email"
+          id="identifier"
           class="input"
-          type="email"
+          type="text"
+          required
           autocomplete="username"
-          placeholder="correo@restaurante.pe"
-          [ngModel]="email()"
-          (ngModelChange)="email.set($event)"
-          name="email"
+          placeholder="correo@restaurante.pe o jperez"
+          [ngModel]="identifier()"
+          (ngModelChange)="identifier.set($event)"
+          name="identifier"
         />
       </div>
 

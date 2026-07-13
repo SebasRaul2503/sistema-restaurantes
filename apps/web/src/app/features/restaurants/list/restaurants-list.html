@@ -188,7 +188,7 @@
                         <div class="avatar">{{ initials(m.userName) }}</div>
                         <div class="user-meta">
                           <strong>{{ m.userName }}</strong>
-                          <small class="muted">{{ m.userEmail }}</small>
+                          <small class="muted">{{ m.userEmail ?? m.userUsername ?? '—' }}</small>
                         </div>
                       </div>
                     </td>

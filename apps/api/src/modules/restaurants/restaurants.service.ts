@@ -155,7 +155,7 @@ export class RestaurantsService {
   async listMembers(restaurantId: string): Promise<RestaurantMemberDto[]> {
     const members = await this.prisma.restaurantMember.findMany({
       where: { restaurantId },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: { id: true, name: true, email: true, username: true } } },
       orderBy: [{ active: 'desc' }, { user: { name: 'asc' } }],
     });
     return members.map((m) => this.toMemberDto(m));
@@ -179,7 +179,7 @@ export class RestaurantsService {
       where: { userId_restaurantId: { userId: dto.userId, restaurantId } },
       update: { role: dto.role, active: true },
       create: { userId: dto.userId, restaurantId, role: dto.role, active: true },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: { id: true, name: true, email: true, username: true } } },
     });
 
     await this.audit.record({
@@ -212,7 +212,7 @@ export class RestaurantsService {
     const updated = await this.prisma.restaurantMember.update({
       where: { id: memberId },
       data,
-      include: { user: { select: { id: true, name: true, email: true } } },
+      include: { user: { select: { id: true, name: true, email: true, username: true } } },
     });
 
     await this.audit.record({
@@ -306,13 +306,14 @@ export class RestaurantsService {
   }
 
   private toMemberDto(
-    m: RestaurantMember & { user: Pick<User, 'id' | 'name' | 'email'> },
+    m: RestaurantMember & { user: Pick<User, 'id' | 'name' | 'email' | 'username'> },
   ): RestaurantMemberDto {
     return {
       id: m.id,
       userId: m.userId,
       userName: m.user.name,
       userEmail: m.user.email,
+      userUsername: m.user.username,
       restaurantId: m.restaurantId,
       role: m.role as UserRole,
       active: m.active,

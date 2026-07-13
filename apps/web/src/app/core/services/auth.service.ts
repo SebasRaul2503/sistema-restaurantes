@@ -34,9 +34,9 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this._accessToken() !== null && this.user() !== null);
   readonly isAdmin = computed(() => this.user()?.role === UserRole.ADMIN);
 
-  async login(email: string, password: string): Promise<void> {
+  async login(identifier: string, password: string): Promise<void> {
     const res = await firstValueFrom(
-      this.api.post<LoginResponse>('/auth/login', { email, password }),
+      this.api.post<LoginResponse>('/auth/login', { identifier, password }),
     );
     this.setSession(res.accessToken, res.user);
     await this.refreshMe();
