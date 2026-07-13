@@ -12,24 +12,66 @@ const prisma = new PrismaClient();
 const HASH_ROUNDS = 12;
 
 async function ensureUser(input: {
-  email: string;
+  email?: string;
+  username?: string;
   name: string;
   password: string;
   role: 'ADMIN' | 'OPERATOR';
-}): Promise<string> {
+}): Promise<{ id: string; loginId: string }> {
   const passwordHash = await bcrypt.hash(input.password, HASH_ROUNDS);
-  const user = await prisma.user.upsert({
-    where: { email: input.email },
-    update: { name: input.name, role: input.role, active: true },
-    create: {
-      email: input.email,
+
+  // Busca por email primero (identificador principal), luego por username.
+  let user = input.email
+    ? await prisma.user.findUnique({ where: { email: input.email } })
+    : null;
+  if (!user && input.username) {
+    user = await prisma.user.findUnique({ where: { username: input.username } });
+  }
+
+  if (user) {
+    // Si el username deseado ya está ocupado por OTRO usuario, no lo forzamos.
+    let targetUsername = input.username ?? undefined;
+    if (targetUsername && targetUsername !== user.username) {
+      const existing = await prisma.user.findUnique({ where: { username: targetUsername } });
+      if (existing && existing.id !== user.id) {
+        targetUsername = undefined; // ya lo tiene otro usuario, no sobreescribir
+      }
+    }
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: input.name,
+        role: input.role,
+        active: true,
+        email: input.email ?? user.email,
+        username: targetUsername ?? user.username,
+      },
+    });
+    return { id: updated.id, loginId: loginId(updated) };
+  }
+
+  // Al crear, verificar que el username no esté ocupado.
+  let createUsername = input.username ?? undefined;
+  if (createUsername) {
+    const existing = await prisma.user.findUnique({ where: { username: createUsername } });
+    if (existing) createUsername = undefined;
+  }
+  const created = await prisma.user.create({
+    data: {
+      email: input.email ?? null,
+      username: createUsername ?? null,
       name: input.name,
       passwordHash,
       role: input.role,
       active: true,
     },
   });
-  return user.id;
+  return { id: created.id, loginId: loginId(created) };
+}
+
+/** Retorna el identificador con el que el usuario puede hacer login (email o username). */
+function loginId(user: { email: string | null; username: string | null }): string {
+  return user.username ?? user.email ?? '(sin identificador)';
 }
 
 async function ensureRestaurant(input: {
@@ -94,12 +136,17 @@ async function main(): Promise<void> {
   }
 
   // --- Usuario administrador (superadmin: ADMIN sin membresía) ---
+  // Soporta login por email o por username.
+  // Si SEED_ADMIN_USERNAME está definido, se usa como identificador único
+  // para el upsert (find + create/update). Si no, se usa el email.
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@restaurante.pe';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin1234';
   const adminName = process.env.SEED_ADMIN_NAME ?? 'Administrador';
+  const adminUsername = process.env.SEED_ADMIN_USERNAME?.trim() || undefined;
 
-  await ensureUser({
+  const admin = await ensureUser({
     email: adminEmail,
+    username: adminUsername,
     name: adminName,
     password: adminPassword,
     role: 'ADMIN',
@@ -138,7 +185,7 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.log('Seed inicial completado.');
-  console.log(`  Administrador: ${adminEmail} / ${adminPassword}`);
+  console.log(`  Administrador: ${admin.loginId} / ${adminPassword}`);
   console.log('  Local principal: "principal" (puedes agregar más desde /locales)');
   console.log('  1 mesa registrada, categorías base sin platos.');
 }
