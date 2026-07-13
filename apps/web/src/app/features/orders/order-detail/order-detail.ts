@@ -115,7 +115,7 @@ export class OrderDetailPage {
     this.order.set(order);
     // Por defecto, el monto a cobrar es el saldo pendiente del pedido.
     this.payAmount.set(order.balance);
-    if (order.status === OrderStatus.CERRADA) {
+    if (order.status === OrderStatus.CERRADA && !this.readonly()) {
       this.notify.success('Pedido pagado y cerrado.');
       setTimeout(() => void this.router.navigate(['/mesas']), 1200);
     }
