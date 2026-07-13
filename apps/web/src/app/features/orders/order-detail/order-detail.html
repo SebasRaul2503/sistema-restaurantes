@@ -1,7 +1,9 @@
 @if (order(); as o) {
   <div class="order-head">
     <div class="flex items-center gap-3">
-      <button class="btn btn-ghost btn-sm" (click)="back()">← Mesas</button>
+      <button class="btn btn-ghost btn-sm" (click)="back()">
+        @if (readonly()) { ← Historial } @else { ← Mesas }
+      </button>
       <div>
         <h1>Mesa {{ o.tableNumber }} · Pedido #{{ o.code }}</h1>
         <span class="badge" [class.badge-info]="o.status === OrderStatus.ABIERTA"
@@ -10,9 +12,12 @@
           {{ o.status | enumLabel: 'orderStatus' }}
         </span>
         <span class="muted"> · Atiende: {{ o.openedByName }}</span>
+        @if (readonly()) {
+          <span class="muted"> · Modo solo lectura</span>
+        }
       </div>
     </div>
-    @if (o.status === OrderStatus.ABIERTA && o.payments.length === 0) {
+    @if (o.status === OrderStatus.ABIERTA && o.payments.length === 0 && !readonly()) {
       <button class="btn btn-danger btn-sm" (click)="cancelOrder()">Anular pedido</button>
     }
   </div>
@@ -23,7 +28,7 @@
       <div class="card card-pad">
         <h3>Platos del pedido</h3>
         @if (o.items.length === 0) {
-          <div class="empty-state">Aún no hay platos. Agregue desde la carta.</div>
+          <div class="empty-state">Aún no hay platos.</div>
         }
         @for (item of o.items; track item.id) {
           <div class="item-row" [class.modified]="item.isModified">
@@ -45,7 +50,7 @@
 
             <div class="item-side">
               <strong>{{ item.subtotal | soles }}</strong>
-              @if (o.status === OrderStatus.ABIERTA && !item.isModified) {
+              @if (o.status === OrderStatus.ABIERTA && !item.isModified && !readonly()) {
                 @if (item.status !== 'ENTREGADO') {
                   <div class="qty">
                     <button class="btn btn-ghost btn-sm" (click)="changeQty(item, -1)">−</button>
@@ -67,7 +72,7 @@
         }
       </div>
 
-      @if (o.status === OrderStatus.ABIERTA) {
+      @if (o.status === OrderStatus.ABIERTA && !readonly()) {
         <div class="card card-pad">
           <h3>Agregar de la carta</h3>
           <div class="field">
@@ -101,7 +106,7 @@
         <div class="total-row big"><span>Saldo</span><strong>{{ o.balance | soles }}</strong></div>
       </div>
 
-      @if (o.status === OrderStatus.ABIERTA) {
+      @if (o.status === OrderStatus.ABIERTA && !readonly()) {
         <div class="card card-pad">
           <h3>Dividir cuenta</h3>
           <div class="flex items-center gap-2">

@@ -78,6 +78,9 @@ export class OrderDetailPage {
 
   readonly activeItems = computed(() => this.order()?.items.filter((i) => !i.isModified) ?? []);
 
+  /** Modo read-only: true cuando se navega desde /historial/:orderId. */
+  readonly readonly = signal(this.route.snapshot.url[0]?.path === 'historial');
+
   constructor() {
     this.orderId = this.route.snapshot.paramMap.get('orderId') ?? '';
     effect(() => {
@@ -87,7 +90,7 @@ export class OrderDetailPage {
   }
 
   back(): void {
-    void this.router.navigate(['/mesas']);
+    void this.router.navigate([this.readonly() ? '/historial' : '/mesas']);
   }
 
   async load(): Promise<void> {

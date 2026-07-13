@@ -39,6 +39,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/orders/order-detail/order-detail').then((m) => m.OrderDetailPage),
       },
       {
+        path: 'historial',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/orders/history/orders-history').then((m) => m.OrdersHistoryPage),
+      },
+      {
+        path: 'historial/:orderId',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/orders/order-detail/order-detail').then((m) => m.OrderDetailPage),
+      },
+      {
         path: 'caja',
         loadComponent: () => import('./features/cash/cash').then((m) => m.CashPage),
       },

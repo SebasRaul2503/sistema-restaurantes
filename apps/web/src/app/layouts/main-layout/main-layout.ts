@@ -39,6 +39,7 @@ export class MainLayout {
     { path: '/caja', label: 'Caja', icon: 'cash' },
     { path: '/carta', label: 'Carta', icon: 'menu', adminOnly: true },
     { path: '/reportes', label: 'Reportes', icon: 'reports', adminOnly: true },
+    { path: '/historial', label: 'Historial', icon: 'clock', adminOnly: true },
     { path: '/locales', label: 'Locales', icon: 'building', adminOnly: true },
     { path: '/usuarios', label: 'Usuarios', icon: 'users', adminOnly: true },
     { path: '/configuracion', label: 'Configuración', icon: 'settings', adminOnly: true },

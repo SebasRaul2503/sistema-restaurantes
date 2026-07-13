@@ -188,6 +188,7 @@ export interface DishDto {
 export interface OrderItemDto {
   id: string;
   dishId: string;
+  /** Snapshot del nombre del plato. Sobrevive a cambios de nombre y a la eliminación del plato. */
   dishName: string;
   unitPrice: number;
   quantity: number;
@@ -210,6 +211,7 @@ export interface OrderSummaryDto {
   paid: number;
   balance: number;
   openedAt: string;
+  closedAt: string | null;
 }
 
 export interface OrderDto extends OrderSummaryDto {
@@ -219,6 +221,25 @@ export interface OrderDto extends OrderSummaryDto {
   items: OrderItemDto[];
   billGroups: BillGroupDto[];
   payments: PaymentDto[];
+}
+
+// --- Historial de pedidos (solo lectura, solo ADMIN) ---
+
+/** Filtros del endpoint /orders/history. */
+export interface OrderHistoryFilterDto {
+  from?: string;
+  to?: string;
+  status?: 'cerrados' | 'anulados' | 'todos';
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedOrdersDto {
+  items: OrderSummaryDto[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface BillGroupItemDto {
