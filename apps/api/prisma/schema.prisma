@@ -333,6 +333,10 @@ model OrderItem {
   /// cambios posteriores en la carta).
   unitPrice Decimal         @db.Decimal(10, 2)
   quantity  Int             @default(1)
+  /// Nombre del plato al momento del pedido (snapshot). Sobrevive a cambios
+  /// de nombre y a la eliminación del plato, así el histórico sigue
+  /// mostrando lo que el cliente pidió aunque la carta cambie.
+  dishName  String
   notes     String? // p. ej. "Sin cebolla"
   status    OrderItemStatus @default(PENDIENTE)
 

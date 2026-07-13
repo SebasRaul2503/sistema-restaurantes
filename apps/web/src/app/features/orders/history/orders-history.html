@@ -1,0 +1,110 @@
+<div class="page-head">
+  <div>
+    <h1>Historial de pedidos</h1>
+    <p class="muted">Solo lectura — snapshots de precio y nombre del plato</p>
+  </div>
+</div>
+
+<div class="card card-pad filters">
+  <h3>Filtros</h3>
+  <div class="filters-grid">
+    <div class="field">
+      <label for="from">Desde</label>
+      <app-date-field id="from" [value]="from()" (valueChange)="onFromChange($event)" />
+    </div>
+    <div class="field">
+      <label for="to">Hasta</label>
+      <app-date-field id="to" [value]="to()" (valueChange)="onToChange($event)" />
+    </div>
+    <div class="field">
+      <label for="status">Estado</label>
+      <select id="status" class="select" [ngModel]="status()" (ngModelChange)="onStatusChange($event)">
+        <option value="cerrados">Cerrados</option>
+        <option value="anulados">Anulados</option>
+        <option value="todos">Todos (cerrados + anulados)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="q">Buscar</label>
+      <input
+        id="q"
+        class="input"
+        type="search"
+        placeholder="Código, mesa, plato o usuario"
+        [ngModel]="q()"
+        (ngModelChange)="onSearchInput($event)"
+      />
+    </div>
+  </div>
+  <div class="filters-actions">
+    <button class="btn btn-ghost btn-sm" type="button" (click)="clearFilters()">Limpiar</button>
+  </div>
+</div>
+
+@if (result(); as r) {
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Mesa</th>
+          <th>Apertura</th>
+          <th>Cierre</th>
+          <th class="text-right">Platos</th>
+          <th class="text-right">Total</th>
+          <th>Estado</th>
+          <th class="text-right">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (o of r.items; track o.id) {
+          <tr>
+            <td><strong>#{{ o.code }}</strong></td>
+            <td>Mesa {{ o.tableNumber }}</td>
+            <td class="muted">{{ formatDate(o.openedAt) }}</td>
+            <td class="muted">{{ o.closedAt ? formatDate(o.closedAt) : '—' }}</td>
+            <td class="text-right">{{ o.itemCount }}</td>
+            <td class="text-right"><strong>{{ o.total | soles }}</strong></td>
+            <td>
+              @if (o.status === OrderStatus.CERRADA) {
+                <span class="badge badge-success">Cerrado</span>
+              } @else if (o.status === OrderStatus.ANULADA) {
+                <span class="badge badge-muted">Anulado</span>
+              } @else {
+                <span class="badge">{{ o.status }}</span>
+              }
+            </td>
+            <td class="text-right">
+              <a class="btn btn-ghost btn-sm" [routerLink]="['/historial', o.id]">Ver detalle</a>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="empty-state">No hay pedidos que coincidan con los filtros.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination">
+    <span class="muted">
+      {{ r.total }} resultado{{ r.total === 1 ? '' : 's' }} · página {{ r.page }} de {{ totalPages() }}
+    </span>
+    <div class="pagination-actions">
+      <button class="btn btn-ghost btn-sm" type="button" [disabled]="page() <= 1" (click)="prevPage()">
+        Anterior
+      </button>
+      <button
+        class="btn btn-ghost btn-sm"
+        type="button"
+        [disabled]="page() >= totalPages()"
+        (click)="nextPage()"
+      >
+        Siguiente
+      </button>
+    </div>
+  </div>
+} @else if (loading()) {
+  <p class="muted">Cargando…</p>
+}
