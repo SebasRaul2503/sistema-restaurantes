@@ -165,6 +165,7 @@ export class OrdersService {
       data: {
         orderId,
         dishId: dish.id,
+        dishName: dish.name,
         unitPrice: dish.price,
         quantity: dto.quantity,
         notes: dto.notes ?? null,
@@ -301,6 +302,7 @@ export class OrdersService {
         data: {
           orderId: original.orderId,
           dishId: dish.id,
+          dishName: dish.name,
           unitPrice: dish.price,
           quantity: dto.quantity ?? original.quantity,
           notes: dto.notes ?? original.notes,

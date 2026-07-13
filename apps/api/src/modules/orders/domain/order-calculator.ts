@@ -32,7 +32,9 @@ export function mapOrderItem(item: OrderWithRelations['items'][number]): OrderIt
   return {
     id: item.id,
     dishId: item.dishId,
-    dishName: item.dish.name,
+    // Snapshot del nombre: si por alguna razón quedó null (registros antiguos
+    // sin backfill), caemos al nombre actual del plato o a un placeholder.
+    dishName: item.dishName ?? item.dish?.name ?? 'Plato eliminado',
     unitPrice: toNumber(item.unitPrice),
     quantity: item.quantity,
     notes: item.notes,
@@ -82,7 +84,7 @@ function mapBillGroup(order: OrderWithRelations, group: OrderWithRelations['bill
   const items = group.items.map((gi) => ({
     id: gi.id,
     orderItemId: gi.orderItemId,
-    dishName: gi.orderItem.dish.name,
+    dishName: gi.orderItem.dishName ?? gi.orderItem.dish?.name ?? 'Plato eliminado',
     unitPrice: toNumber(gi.orderItem.unitPrice),
     quantity: gi.quantity,
     subtotal: itemSubtotal(gi.orderItem.unitPrice, gi.quantity),
@@ -121,6 +123,7 @@ export function toOrderSummary(order: OrderWithRelations): OrderSummaryDto {
     paid,
     balance: round2(total - paid),
     openedAt: order.openedAt.toISOString(),
+    closedAt: order.closedAt ? order.closedAt.toISOString() : null,
   };
 }
 
