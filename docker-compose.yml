@@ -32,6 +32,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      TZ: America/Lima
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-restaurante}:${POSTGRES_PASSWORD:-restaurante_dev_password}@postgres:5432/${POSTGRES_DB:-restaurante}?schema=public
       API_PORT: 3000

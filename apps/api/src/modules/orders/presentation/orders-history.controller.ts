@@ -20,8 +20,8 @@ export class OrdersHistoryController {
     summary:
       'Historial de pedidos cerrados/anulados (solo ADMIN). Snapshots de precio y nombre.',
   })
-  @ApiQuery({ name: 'from', required: false, description: 'Fecha inicio (yyyy-MM-dd, UTC)' })
-  @ApiQuery({ name: 'to', required: false, description: 'Fecha fin (yyyy-MM-dd, UTC)' })
+  @ApiQuery({ name: 'from', required: false, description: 'Fecha civil inicio (yyyy-MM-dd, America/Lima)' })
+  @ApiQuery({ name: 'to', required: false, description: 'Fecha civil fin (yyyy-MM-dd, America/Lima)' })
   @ApiQuery({
     name: 'status',
     required: false,

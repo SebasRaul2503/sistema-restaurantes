@@ -10,23 +10,16 @@ import {
 } from '@restaurante/shared-types';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { round2, toNumber } from '../../common/utils/money.util';
+import {
+  endOfCivilDayInLima,
+  limaDateKey,
+  limaIsoWeek,
+  limaYearMonthKey,
+  startOfCivilDayInLima,
+  startOfMonthInLima,
+} from '../../common/time/lima-clock';
 
 type RevenuePeriod = 'daily' | 'weekly' | 'monthly';
-
-/** Inicio del día actual (hora local del servidor). */
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-/** Inicio del mes actual (hora local del servidor). */
-function startOfMonth(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(1);
-  return d;
-}
 
 @Injectable()
 export class ReportsService {
@@ -60,11 +53,11 @@ export class ReportsService {
         _count: { _all: true },
       }),
       this.prisma.payment.aggregate({
-        where: { createdAt: { gte: startOfToday() }, order: { restaurantId } },
+        where: { createdAt: { gte: startOfCivilDayInLima(new Date()) }, order: { restaurantId } },
         _sum: { amount: true },
       }),
       this.prisma.payment.aggregate({
-        where: { createdAt: { gte: startOfMonth() }, order: { restaurantId } },
+        where: { createdAt: { gte: startOfMonthInLima() }, order: { restaurantId } },
         _sum: { amount: true },
       }),
     ]);
@@ -250,9 +243,8 @@ export class ReportsService {
   // -----------------------------------------------------------------------
 
   private resolveRange(from?: string, to?: string): { start: Date; end: Date } {
-    const end = this.parseDate(to) ?? new Date();
-    const start =
-      this.parseDate(from) ?? new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const end = to ? endOfCivilDayInLima(to) : new Date();
+    const start = from ? startOfCivilDayInLima(from) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
     return { start, end };
   }
 
@@ -261,8 +253,8 @@ export class ReportsService {
     from?: string,
     to?: string,
   ): { start: Date; end: Date } {
-    const end = this.parseDate(to) ?? new Date();
-    const parsedFrom = this.parseDate(from);
+    const end = to ? endOfCivilDayInLima(to) : new Date();
+    const parsedFrom = from ? startOfCivilDayInLima(from) : undefined;
     if (parsedFrom) {
       return { start: parsedFrom, end };
     }
@@ -284,45 +276,17 @@ export class ReportsService {
     return { start: new Date(end.getTime() - span), end };
   }
 
-  private parseDate(value?: string): Date | undefined {
-    if (!value) {
-      return undefined;
-    }
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-  }
-
   private bucketKey(date: Date, period: RevenuePeriod): string {
-    const year = date.getFullYear();
-    const month = `${date.getMonth() + 1}`.padStart(2, '0');
-    const day = `${date.getDate()}`.padStart(2, '0');
-
     switch (period) {
       case 'monthly':
-        return `${year}-${month}`;
+        return limaYearMonthKey(date);
       case 'weekly': {
-        const week = this.isoWeek(date);
+        const week = limaIsoWeek(date);
         return `${week.year}-W${`${week.week}`.padStart(2, '0')}`;
       }
       case 'daily':
       default:
-        return `${year}-${month}-${day}`;
+        return limaDateKey(date);
     }
-  }
-
-  private isoWeek(date: Date): { year: number; week: number } {
-    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const dayNr = (target.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3);
-    const isoYear = target.getFullYear();
-    const firstThursday = new Date(isoYear, 0, 4);
-    const firstDayNr = (firstThursday.getDay() + 6) % 7;
-    firstThursday.setDate(firstThursday.getDate() - firstDayNr + 3);
-    const week =
-      1 +
-      Math.round(
-        (target.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000),
-      );
-    return { year: isoYear, week };
   }
 }

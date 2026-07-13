@@ -1,5 +1,4 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CashMovementType, CashSessionDto, CashSessionStatus } from '@restaurante/shared-types';
 import { CashApi } from '../../core/data/cash.api';
@@ -7,11 +6,12 @@ import { ActiveRestaurantService } from '../../core/services/active-restaurant.s
 import { NotificationService } from '../../core/services/notification.service';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
+import { LimaDatePipe } from '../../shared/pipes/lima-date.pipe';
 
 @Component({
   selector: 'app-cash',
   standalone: true,
-  imports: [FormsModule, DatePipe, SolesPipe, EnumLabelPipe],
+  imports: [FormsModule, SolesPipe, EnumLabelPipe, LimaDatePipe],
   templateUrl: './cash.html',
   styleUrl: './cash.scss',
 })

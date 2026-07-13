@@ -105,6 +105,7 @@ export class OrdersHistoryPage implements OnInit {
       return new Date(iso).toLocaleString('es-PE', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
+        timeZone: 'America/Lima',
       });
     } catch {
       return iso;
