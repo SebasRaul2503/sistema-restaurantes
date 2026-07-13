@@ -41,6 +41,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:4200}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@restaurante.pe}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin1234}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrador}
     ports:
