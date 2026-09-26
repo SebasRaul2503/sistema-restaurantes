@@ -26,8 +26,13 @@ export class BillingService {
     private readonly orders: OrdersService,
   ) {}
 
-  async splitEven(orderId: string, dto: SplitEvenDto, actorId: string): Promise<OrderDto> {
-    const order = await this.loadOpenOrder(orderId);
+  async splitEven(
+    orderId: string,
+    dto: SplitEvenDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const order = await this.loadOpenOrder(orderId, restaurantId);
     this.assertNoPayments(order);
 
     const total = orderTotal(order);
@@ -37,7 +42,6 @@ export class BillingService {
 
     const base = Math.floor((total / dto.parts) * 100) / 100;
     const amounts: number[] = Array.from({ length: dto.parts }, () => base);
-    // El último grupo absorbe el redondeo para cuadrar el total exacto.
     amounts[dto.parts - 1] = round2(total - base * (dto.parts - 1));
 
     await this.prisma.$transaction(async (tx) => {
@@ -52,19 +56,30 @@ export class BillingService {
         });
       }
       await this.audit.record(
-        { userId: actorId, action: 'BILL_SPLIT_EVEN', entity: 'Order', entityId: orderId, metadata: { parts: dto.parts, total } },
+        {
+          userId: actorId,
+          action: 'BILL_SPLIT_EVEN',
+          entity: 'Order',
+          entityId: orderId,
+          restaurantId,
+          metadata: { parts: dto.parts, total },
+        },
         tx,
       );
     });
 
-    return this.orders.findOne(orderId);
+    return this.orders.findOne(orderId, restaurantId);
   }
 
-  async splitByItems(orderId: string, dto: SplitItemsDto, actorId: string): Promise<OrderDto> {
-    const order = await this.loadOpenOrder(orderId);
+  async splitByItems(
+    orderId: string,
+    dto: SplitItemsDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const order = await this.loadOpenOrder(orderId, restaurantId);
     this.assertNoPayments(order);
 
-    // Mapa de cantidades disponibles por ítem vigente (no modificado).
     const available = new Map<string, number>();
     for (const item of order.items) {
       if (!item.isModified) {
@@ -72,7 +87,6 @@ export class BillingService {
       }
     }
 
-    // Validar que cada asignación exista y no exceda lo disponible.
     const consumed = new Map<string, number>();
     for (const group of dto.groups) {
       for (const assign of group.items) {
@@ -93,21 +107,37 @@ export class BillingService {
         const created = await tx.billGroup.create({ data: { orderId, name: group.name.trim() } });
         for (const assign of group.items) {
           await tx.billGroupItem.create({
-            data: { billGroupId: created.id, orderItemId: assign.orderItemId, quantity: assign.quantity },
+            data: {
+              billGroupId: created.id,
+              orderItemId: assign.orderItemId,
+              quantity: assign.quantity,
+            },
           });
         }
       }
       await this.audit.record(
-        { userId: actorId, action: 'BILL_SPLIT_ITEMS', entity: 'Order', entityId: orderId, metadata: { groups: dto.groups.length } },
+        {
+          userId: actorId,
+          action: 'BILL_SPLIT_ITEMS',
+          entity: 'Order',
+          entityId: orderId,
+          restaurantId,
+          metadata: { groups: dto.groups.length },
+        },
         tx,
       );
     });
 
-    return this.orders.findOne(orderId);
+    return this.orders.findOne(orderId, restaurantId);
   }
 
-  async createGroup(orderId: string, dto: CreateBillGroupDto, actorId: string): Promise<OrderDto> {
-    const order = await this.loadOpenOrder(orderId);
+  async createGroup(
+    orderId: string,
+    dto: CreateBillGroupDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const order = await this.loadOpenOrder(orderId, restaurantId);
     await this.prisma.billGroup.create({
       data: {
         orderId: order.id,
@@ -115,44 +145,81 @@ export class BillingService {
         fixedAmount: dto.fixedAmount !== undefined ? new Prisma.Decimal(dto.fixedAmount) : null,
       },
     });
-    await this.audit.record({ userId: actorId, action: 'BILL_GROUP_CREATED', entity: 'Order', entityId: orderId });
-    return this.orders.findOne(orderId);
+    await this.audit.record({
+      userId: actorId,
+      action: 'BILL_GROUP_CREATED',
+      entity: 'Order',
+      entityId: orderId,
+      restaurantId,
+    });
+    return this.orders.findOne(orderId, restaurantId);
   }
 
-  async addItemToGroup(groupId: string, dto: AddGroupItemDto, actorId: string): Promise<OrderDto> {
-    const group = await this.prisma.billGroup.findUnique({ where: { id: groupId } });
+  async addItemToGroup(
+    groupId: string,
+    dto: AddGroupItemDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const group = await this.prisma.billGroup.findFirst({
+      where: { id: groupId, order: { restaurantId } },
+    });
     if (!group) {
       throw new NotFoundException('Grupo de cuenta no encontrado.');
     }
-    const item = await this.prisma.orderItem.findUnique({ where: { id: dto.orderItemId } });
+    const item = await this.prisma.orderItem.findFirst({
+      where: { id: dto.orderItemId, order: { restaurantId } },
+    });
     if (!item || item.orderId !== group.orderId || item.isModified) {
       throw new BadRequestException('El ítem no pertenece al pedido o fue corregido.');
     }
     await this.prisma.billGroupItem.upsert({
-      where: { billGroupId_orderItemId: { billGroupId: groupId, orderItemId: dto.orderItemId } },
+      where: {
+        billGroupId_orderItemId: { billGroupId: groupId, orderItemId: dto.orderItemId },
+      },
       create: { billGroupId: groupId, orderItemId: dto.orderItemId, quantity: dto.quantity },
       update: { quantity: dto.quantity },
     });
-    await this.audit.record({ userId: actorId, action: 'BILL_GROUP_ITEM_ADDED', entity: 'BillGroup', entityId: groupId });
-    return this.orders.findOne(group.orderId);
+    await this.audit.record({
+      userId: actorId,
+      action: 'BILL_GROUP_ITEM_ADDED',
+      entity: 'BillGroup',
+      entityId: groupId,
+      restaurantId,
+    });
+    return this.orders.findOne(group.orderId, restaurantId);
   }
 
-  async removeGroupItem(groupItemId: string, actorId: string): Promise<OrderDto> {
-    const groupItem = await this.prisma.billGroupItem.findUnique({
-      where: { id: groupItemId },
+  async removeGroupItem(
+    groupItemId: string,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const groupItem = await this.prisma.billGroupItem.findFirst({
+      where: { id: groupItemId, billGroup: { order: { restaurantId } } },
       include: { billGroup: true },
     });
     if (!groupItem) {
       throw new NotFoundException('Asignación no encontrada.');
     }
     await this.prisma.billGroupItem.delete({ where: { id: groupItemId } });
-    await this.audit.record({ userId: actorId, action: 'BILL_GROUP_ITEM_REMOVED', entity: 'BillGroup', entityId: groupItem.billGroupId });
-    return this.orders.findOne(groupItem.billGroup.orderId);
+    await this.audit.record({
+      userId: actorId,
+      action: 'BILL_GROUP_ITEM_REMOVED',
+      entity: 'BillGroup',
+      entityId: groupItem.billGroupId,
+      restaurantId,
+    });
+    return this.orders.findOne(groupItem.billGroup.orderId, restaurantId);
   }
 
-  async deleteGroup(groupId: string, actorId: string): Promise<OrderDto> {
-    const group = await this.prisma.billGroup.findUnique({
-      where: { id: groupId },
+  async deleteGroup(
+    groupId: string,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const group = await this.prisma.billGroup.findFirst({
+      where: { id: groupId, order: { restaurantId } },
       include: { payments: true },
     });
     if (!group) {
@@ -162,20 +229,39 @@ export class BillingService {
       throw new BadRequestException('No se puede eliminar un grupo con pagos registrados.');
     }
     await this.prisma.billGroup.delete({ where: { id: groupId } });
-    await this.audit.record({ userId: actorId, action: 'BILL_GROUP_DELETED', entity: 'Order', entityId: group.orderId });
-    return this.orders.findOne(group.orderId);
+    await this.audit.record({
+      userId: actorId,
+      action: 'BILL_GROUP_DELETED',
+      entity: 'Order',
+      entityId: group.orderId,
+      restaurantId,
+    });
+    return this.orders.findOne(group.orderId, restaurantId);
   }
 
-  async clearSplit(orderId: string, actorId: string): Promise<OrderDto> {
-    const order = await this.loadOpenOrder(orderId);
+  async clearSplit(
+    orderId: string,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<OrderDto> {
+    const order = await this.loadOpenOrder(orderId, restaurantId);
     this.assertNoPayments(order);
     await this.prisma.billGroup.deleteMany({ where: { orderId } });
-    await this.audit.record({ userId: actorId, action: 'BILL_SPLIT_CLEARED', entity: 'Order', entityId: orderId });
-    return this.orders.findOne(orderId);
+    await this.audit.record({
+      userId: actorId,
+      action: 'BILL_SPLIT_CLEARED',
+      entity: 'Order',
+      entityId: orderId,
+      restaurantId,
+    });
+    return this.orders.findOne(orderId, restaurantId);
   }
 
-  private async loadOpenOrder(orderId: string) {
-    const order = await this.prisma.order.findUnique({ where: { id: orderId }, include: ORDER_INCLUDE });
+  private async loadOpenOrder(orderId: string, restaurantId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: ORDER_INCLUDE,
+    });
     if (!order) {
       throw new NotFoundException('Pedido no encontrado.');
     }

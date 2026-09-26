@@ -1,7 +1,7 @@
 <div class="page-head">
   <div>
-    <h1>Configuración del restaurante</h1>
-    <p class="muted">Marca y datos del negocio</p>
+    <h1>Configuración</h1>
+    <p class="muted">Datos del negocio (tenant) y marca del local activo</p>
   </div>
   <button
     class="btn btn-primary"
@@ -16,8 +16,15 @@
   <div class="empty-state">Cargando configuración...</div>
 } @else {
   <div class="settings-layout">
+    <!-- ====================================================== -->
+    <!-- 1. Datos del negocio (tenant) — globales                -->
+    <!-- ====================================================== -->
     <section class="card card-pad">
       <h3>Datos del negocio</h3>
+      <p class="muted section-hint">
+        Estos datos son del tenant y se usan como marca por defecto para los locales
+        que no tienen override propio.
+      </p>
 
       <div class="field">
         <label for="name">Nombre del restaurante</label>
@@ -69,8 +76,59 @@
       </div>
     </section>
 
+    <!-- ====================================================== -->
+    <!-- 2. Marca del local activo (override por local)          -->
+    <!-- ====================================================== -->
     <section class="card card-pad">
-      <h3>Marca</h3>
+      <h3>
+        Marca del local
+        @if (activeRestaurant()) {
+          <span class="muted local-name">· {{ activeRestaurant()!.name }}</span>
+        } @else {
+          <span class="muted local-name">· sin local activo</span>
+        }
+      </h3>
+      <p class="muted section-hint">
+        Personaliza la marca de este local. Si dejas un campo vacío o usas "Heredar
+        del tenant", el frontend mostrará los colores/logo del negocio.
+      </p>
+
+      <div class="field">
+        <label for="localName">Nombre del local</label>
+        <input
+          id="localName"
+          class="input"
+          type="text"
+          [disabled]="!activeRestaurantId()"
+          [ngModel]="localName()"
+          (ngModelChange)="localName.set($event)"
+        />
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="localAddress">Dirección del local</label>
+          <input
+            id="localAddress"
+            class="input"
+            type="text"
+            [disabled]="!activeRestaurantId()"
+            [ngModel]="localAddress()"
+            (ngModelChange)="localAddress.set($event)"
+          />
+        </div>
+        <div class="field">
+          <label for="localPhone">Teléfono del local</label>
+          <input
+            id="localPhone"
+            class="input"
+            type="text"
+            [disabled]="!activeRestaurantId()"
+            [ngModel]="localPhone()"
+            (ngModelChange)="localPhone.set($event)"
+          />
+        </div>
+      </div>
 
       <div class="color-row">
         <div class="field">
@@ -79,6 +137,7 @@
             id="primaryColor"
             class="input color-input"
             type="color"
+            [disabled]="!activeRestaurantId()"
             [ngModel]="primaryColor()"
             (ngModelChange)="primaryColor.set($event)"
           />
@@ -89,6 +148,7 @@
             id="secondaryColor"
             class="input color-input"
             type="color"
+            [disabled]="!activeRestaurantId()"
             [ngModel]="secondaryColor()"
             (ngModelChange)="secondaryColor.set($event)"
           />
@@ -102,19 +162,40 @@
           class="input"
           type="file"
           accept="image/*"
+          [disabled]="!activeRestaurantId()"
           (change)="onLogoSelected($event)"
         />
         @if (logoUrl()) {
           <div class="logo-preview">
-            <img [src]="logoUrl()" alt="Logo del restaurante" />
+            <img [src]="logoUrl()" alt="Logo" />
             <button class="btn btn-ghost btn-sm" type="button" (click)="clearLogo()">
               Quitar logo
             </button>
           </div>
         }
       </div>
+
+      @if (activeRestaurantId()) {
+        @if (hasLocalBrand()) {
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            [disabled]="saving()"
+            (click)="inheritFromTenant()"
+          >
+            Heredar marca del tenant
+          </button>
+        } @else {
+          <p class="muted hint">
+            Este local usa la marca del tenant. Edita los campos arriba para personalizarla.
+          </p>
+        }
+      }
     </section>
 
+    <!-- ====================================================== -->
+    <!-- 3. Vista previa                                           -->
+    <!-- ====================================================== -->
     <section class="card card-pad preview">
       <h3>Vista previa</h3>
       <div class="preview-brand">

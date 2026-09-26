@@ -1,113 +1,193 @@
-// Seed inicial: usuario administrador, configuración del restaurante, categorías
-// base de la carta, algunos platos de ejemplo y mesas. Idempotente (upsert).
+// Seed mínimo para el primer arranque del sistema: 1 local, 1 usuario
+// administrador (superadmin, sin membresía = ve todo), 1 mesa, y las
+// categorías base del sistema (sin platos). Los locales adicionales,
+// mesas, platos y miembros se crean desde la interfaz web.
+// Idempotente (upsert).
 
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function main(): Promise<void> {
-  // --- Usuario administrador ---
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@restaurante.pe';
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin1234';
-  const adminName = process.env.SEED_ADMIN_NAME ?? 'Administrador';
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
+const HASH_ROUNDS = 12;
 
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: { email: adminEmail, name: adminName, role: 'ADMIN', passwordHash },
-  });
+async function ensureUser(input: {
+  email?: string;
+  username?: string;
+  name: string;
+  password: string;
+  role: 'ADMIN' | 'OPERATOR';
+}): Promise<{ id: string; loginId: string }> {
+  const passwordHash = await bcrypt.hash(input.password, HASH_ROUNDS);
 
-  // Operador de ejemplo
-  await prisma.user.upsert({
-    where: { email: 'mesero@restaurante.pe' },
-    update: {},
-    create: {
-      email: 'mesero@restaurante.pe',
-      name: 'Mesero de ejemplo',
-      role: 'OPERATOR',
-      passwordHash: await bcrypt.hash('Mesero1234', 12),
+  // Busca por email primero (identificador principal), luego por username.
+  let user = input.email
+    ? await prisma.user.findUnique({ where: { email: input.email } })
+    : null;
+  if (!user && input.username) {
+    user = await prisma.user.findUnique({ where: { username: input.username } });
+  }
+
+  if (user) {
+    // Si el username deseado ya está ocupado por OTRO usuario, no lo forzamos.
+    let targetUsername = input.username ?? undefined;
+    if (targetUsername && targetUsername !== user.username) {
+      const existing = await prisma.user.findUnique({ where: { username: targetUsername } });
+      if (existing && existing.id !== user.id) {
+        targetUsername = undefined; // ya lo tiene otro usuario, no sobreescribir
+      }
+    }
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: input.name,
+        role: input.role,
+        active: true,
+        email: input.email ?? user.email,
+        username: targetUsername ?? user.username,
+      },
+    });
+    return { id: updated.id, loginId: loginId(updated) };
+  }
+
+  // Al crear, verificar que el username no esté ocupado.
+  let createUsername = input.username ?? undefined;
+  if (createUsername) {
+    const existing = await prisma.user.findUnique({ where: { username: createUsername } });
+    if (existing) createUsername = undefined;
+  }
+  const created = await prisma.user.create({
+    data: {
+      email: input.email ?? null,
+      username: createUsername ?? null,
+      name: input.name,
+      passwordHash,
+      role: input.role,
+      active: true,
     },
   });
+  return { id: created.id, loginId: loginId(created) };
+}
 
-  // --- Configuración del restaurante ---
+/** Retorna el identificador con el que el usuario puede hacer login (email o username). */
+function loginId(user: { email: string | null; username: string | null }): string {
+  return user.username ?? user.email ?? '(sin identificador)';
+}
+
+async function ensureRestaurant(input: {
+  slug: string;
+  name: string;
+  address: string;
+  phone: string;
+}): Promise<string> {
+  const r = await prisma.restaurant.upsert({
+    where: { slug: input.slug },
+    update: {
+      name: input.name,
+      address: input.address,
+      phone: input.phone,
+      active: true,
+    },
+    create: {
+      slug: input.slug,
+      name: input.name,
+      address: input.address,
+      phone: input.phone,
+      active: true,
+    },
+  });
+  return r.id;
+}
+
+async function ensureCategory(
+  restaurantId: string,
+  name: string,
+  sortOrder: number,
+  isSystem: boolean,
+): Promise<void> {
+  await prisma.menuCategory.upsert({
+    where: { restaurantId_name: { restaurantId, name } },
+    update: { sortOrder, isSystem, active: true },
+    create: { restaurantId, name, sortOrder, isSystem, active: true },
+  });
+}
+
+const BASE_CATEGORIES = [
+  { name: 'Entradas', sortOrder: 1, isSystem: true },
+  { name: 'Platos principales', sortOrder: 2, isSystem: true },
+  { name: 'Bebidas', sortOrder: 3, isSystem: true },
+  { name: 'Postres', sortOrder: 4, isSystem: true },
+];
+
+async function main(): Promise<void> {
+  // --- Configuración del tenant (marca por defecto) ---
   const settingsExists = await prisma.restaurantSettings.findFirst();
   if (!settingsExists) {
     await prisma.restaurantSettings.create({
       data: {
-        name: 'Cevichería El Puerto',
+        name: 'Mi Restaurante',
         primaryColor: '#E63946',
         secondaryColor: '#1D3557',
-        address: 'Av. Costanera 123, Lima',
-        phone: '+51 987 654 321',
-        businessInfo: 'RUC: 20123456789',
+        address: '',
+        phone: '',
+        businessInfo: '',
       },
     });
   }
 
-  // --- Categorías base ---
-  const baseCategories = [
-    { name: 'Entradas', sortOrder: 1 },
-    { name: 'Platos principales', sortOrder: 2 },
-    { name: 'Bebidas', sortOrder: 3 },
-    { name: 'Postres', sortOrder: 4 },
-  ];
-  for (const cat of baseCategories) {
-    await prisma.menuCategory.upsert({
-      where: { name: cat.name },
-      update: {},
-      create: { ...cat, isSystem: true },
-    });
+  // --- Usuario administrador (superadmin: ADMIN sin membresía) ---
+  // Soporta login por email o por username.
+  // Si SEED_ADMIN_USERNAME está definido, se usa como identificador único
+  // para el upsert (find + create/update). Si no, se usa el email.
+  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@restaurante.pe';
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin1234';
+  const adminName = process.env.SEED_ADMIN_NAME ?? 'Administrador';
+  const adminUsername = process.env.SEED_ADMIN_USERNAME?.trim() || undefined;
+
+  const admin = await ensureUser({
+    email: adminEmail,
+    username: adminUsername,
+    name: adminName,
+    password: adminPassword,
+    role: 'ADMIN',
+  });
+
+  // --- Local principal ---
+  const restaurantId = await ensureRestaurant({
+    slug: 'principal',
+    name: 'Local Principal',
+    address: '',
+    phone: '',
+  });
+
+  // --- Categorías base (sin platos) ---
+  for (const c of BASE_CATEGORIES) {
+    await ensureCategory(restaurantId, c.name, c.sortOrder, c.isSystem);
   }
 
-  const categories = await prisma.menuCategory.findMany();
-  const byName = (name: string) => categories.find((c) => c.name === name)!;
-
-  // --- Platos de ejemplo ---
-  const dishes: Array<{ name: string; price: number; category: string; description?: string }> = [
-    { name: 'Ceviche clásico', price: 28, category: 'Entradas', description: 'Pescado fresco, limón, ají y camote' },
-    { name: 'Causa limeña', price: 18, category: 'Entradas', description: 'Papa amarilla rellena de pollo' },
-    { name: 'Lomo saltado', price: 32, category: 'Platos principales', description: 'Lomo, papas fritas y arroz' },
-    { name: 'Arroz con mariscos', price: 35, category: 'Platos principales' },
-    { name: 'Ají de gallina', price: 26, category: 'Platos principales' },
-    { name: 'Inca Kola 500ml', price: 6, category: 'Bebidas' },
-    { name: 'Chicha morada (jarra)', price: 12, category: 'Bebidas' },
-    { name: 'Agua mineral', price: 4, category: 'Bebidas' },
-    { name: 'Suspiro a la limeña', price: 14, category: 'Postres' },
-    { name: 'Mazamorra morada', price: 10, category: 'Postres' },
-  ];
-  for (const d of dishes) {
-    const exists = await prisma.dish.findFirst({ where: { name: d.name } });
-    if (!exists) {
-      await prisma.dish.create({
-        data: {
-          name: d.name,
-          description: d.description ?? null,
-          price: new Prisma.Decimal(d.price),
-          categoryId: byName(d.category).id,
-        },
-      });
-    }
-  }
-
-  // --- Mesas ---
-  for (let n = 1; n <= 10; n++) {
-    await prisma.table.upsert({
-      where: { number: n },
-      update: {},
-      create: {
-        number: n,
-        name: `Mesa ${n}`,
-        capacity: n % 3 === 0 ? 6 : 4,
-        posX: ((n - 1) % 4) * 120 + 20,
-        posY: Math.floor((n - 1) / 4) * 120 + 20,
+  // --- Una mesa de ejemplo ---
+  const tableExists = await prisma.table.findUnique({
+    where: { restaurantId_number: { restaurantId, number: 1 } },
+  });
+  if (!tableExists) {
+    await prisma.table.create({
+      data: {
+        restaurantId,
+        number: 1,
+        name: 'Mesa 1',
+        capacity: 4,
+        posX: 20,
+        posY: 20,
+        active: true,
       },
     });
   }
 
   // eslint-disable-next-line no-console
-  console.log('Seed completado. Admin:', adminEmail);
+  console.log('Seed inicial completado.');
+  console.log(`  Administrador: ${admin.loginId} / ${adminPassword}`);
+  console.log('  Local principal: "principal" (puedes agregar más desde /locales)');
+  console.log('  1 mesa registrada, categorías base sin platos.');
 }
 
 main()

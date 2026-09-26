@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { UserDto, UserRole } from '@restaurante/shared-types';
 import { CreateUserPayload, UpdateUserPayload, UsersApi } from '../../core/data/users.api';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
 
@@ -23,6 +24,7 @@ interface EditState {
 export class UsersPage implements OnInit {
   private readonly usersApi = inject(UsersApi);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly UserRole = UserRole;
 
@@ -46,6 +48,11 @@ export class UsersPage implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Identificador mostrado en la tabla: email o username. */
+  identifierOf(user: UserDto): string {
+    return user.email ?? user.username ?? '—';
   }
 
   // ----- Crear -----
@@ -111,20 +118,32 @@ export class UsersPage implements OnInit {
     }
   }
 
-  // ----- Desactivar -----
-  async deactivate(user: UserDto): Promise<void> {
-    if (!confirm(`¿Desactivar al usuario "${user.name}"?`)) return;
+  // ----- Activar / Desactivar -----
+  async toggleActive(user: UserDto): Promise<void> {
+    const isActive = user.active;
+    const ok = await this.confirm.confirm({
+      title: isActive ? 'Desactivar usuario' : 'Reactivar usuario',
+      message: `¿${isActive ? 'Desactivar' : 'Reactivar'} al usuario "${user.name}"?`,
+      confirmText: isActive ? 'Desactivar' : 'Reactivar',
+      variant: isActive ? 'danger' : 'info',
+    });
+    if (!ok) return;
     try {
-      await this.usersApi.deactivate(user.id);
-      this.notify.success('Usuario desactivado');
+      await this.usersApi.update(user.id, { active: !isActive });
+      this.notify.success(isActive ? 'Usuario desactivado' : 'Usuario reactivado');
       await this.load();
     } catch {
-      // El interceptor muestra el toast de error (p. ej. autodesactivación).
+      // El interceptor muestra el toast de error.
     }
   }
 
   // Setters de campo (las plantillas de Angular no admiten literales de objeto).
-  setNewEmail(v: string): void { this.newUser.update((u) => ({ ...u, email: v })); }
+  setNewEmail(v: string): void {
+    this.newUser.update((u) => ({ ...u, email: v.trim() ? v.trim().toLowerCase() : v }));
+  }
+  setNewUsername(v: string): void {
+    this.newUser.update((u) => ({ ...u, username: v.trim() ? v.trim().toLowerCase() : v }));
+  }
   setNewName(v: string): void { this.newUser.update((u) => ({ ...u, name: v })); }
   setNewPassword(v: string): void { this.newUser.update((u) => ({ ...u, password: v })); }
   setNewRole(v: UserRole): void { this.newUser.update((u) => ({ ...u, role: v })); }
@@ -135,6 +154,6 @@ export class UsersPage implements OnInit {
   setEditPassword(v: string): void { this.editing.update((e) => (e ? { ...e, password: v } : e)); }
 
   private emptyCreate(): CreateUserPayload {
-    return { email: '', name: '', password: '', role: UserRole.OPERATOR };
+    return { email: '', username: '', name: '', password: '', role: UserRole.OPERATOR };
   }
 }

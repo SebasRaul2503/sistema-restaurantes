@@ -7,6 +7,8 @@ export interface AuditEntry {
   action: string;
   entity: string;
   entityId?: string | null;
+  /** Local al que aplica la acción. Null para acciones globales. */
+  restaurantId?: string | null;
   metadata?: Prisma.InputJsonValue;
 }
 
@@ -21,10 +23,7 @@ export class AuditService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(
-    entry: AuditEntry,
-    tx?: Prisma.TransactionClient,
-  ): Promise<void> {
+  async record(entry: AuditEntry, tx?: Prisma.TransactionClient): Promise<void> {
     const client = tx ?? this.prisma;
     try {
       await client.auditLog.create({
@@ -33,11 +32,11 @@ export class AuditService {
           action: entry.action,
           entity: entry.entity,
           entityId: entry.entityId ?? null,
+          restaurantId: entry.restaurantId ?? null,
           metadata: entry.metadata ?? undefined,
         },
       });
     } catch (error) {
-      // La auditoría nunca debe romper la operación de negocio.
       this.logger.error(`No se pudo registrar auditoría: ${String(error)}`);
     }
   }

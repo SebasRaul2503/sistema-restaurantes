@@ -2,6 +2,16 @@
 // Sistema de Gestión de Restaurantes — Esquema de base de datos (Prisma)
 // Fuente de verdad del modelo de datos. Comentarios en español; identificadores
 // en inglés (convención del proyecto).
+//
+// NOTA de zona horaria: todas las columnas DateTime almacenan INSTANTES UTC.
+// Las reglas de negocio que dependen de la fecha civil (día de apertura, mes
+// de reporte, filtros from/to) se resuelven en America/Lima mediante el helper
+// `common/time/lima-clock.ts`.  La presentación al usuario también usa
+// America/Lima (LimaDatePipe en Angular).
+//
+// Soporta múltiples locales/establecimientos (`Restaurant`) bajo un mismo
+// tenant. La marca por defecto vive en `RestaurantSettings` (fila única); cada
+// `Restaurant` puede sobreescribirla. Ver `docs/DATA-MODEL.md`.
 // ===========================================================================
 
 generator client {
@@ -19,7 +29,8 @@ datasource db {
 // Enumeraciones
 // --------------------------------------------------------------------------
 
-/// Roles del sistema. Máximo 2: administrador y operador (mesero).
+/// Roles del sistema. Se aplican a nivel global del usuario y por membresía
+/// de `RestaurantMember` (un usuario puede tener roles distintos en cada local).
 enum UserRole {
   ADMIN
   OPERATOR
@@ -72,28 +83,69 @@ enum CashSessionStatus {
 // --------------------------------------------------------------------------
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
+  id           String   @id @default(uuid())
+  /// Email opcional. Para usuarios internos (meseros) que solo usan
+  /// username para entrar, queda null.
+  email        String?  @unique
+  /// Username opcional. Para usuarios externos (admin) que solo usan email.
+  /// Único global. Case-insensitive en la app (se guarda siempre en minúsculas).
+  username     String?  @unique
   passwordHash String
   name         String
-  role         UserRole  @default(OPERATOR)
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  /// Rol del usuario a nivel global. Los ADMIN sin `RestaurantMember` son
+  /// "superadmins" (ven y operan todos los locales). El rol por local vive en
+  /// `RestaurantMember.role`.
+  role         UserRole @default(OPERATOR)
+  active       Boolean  @default(true)
+  /// Último local activo del usuario. El LocalGuard lo actualiza cuando
+  /// llega un X-Restaurant-Id válido. Permite que tras recargar la pestaña
+  /// (o cerrar/abrir el navegador) la sesión se rehidrate con el mismo
+  /// local que el usuario dejó abierto.
+  lastRestaurantId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relaciones inversas (acciones realizadas por el usuario)
-  openedOrders   Order[]        @relation("OrderOpenedBy")
-  payments       Payment[]
-  cashSessions   CashSession[]
-  cashMovements  CashMovement[]
-  auditLogs      AuditLog[]
+  openedOrders  Order[]            @relation("OrderOpenedBy")
+  payments      Payment[]
+  cashSessions  CashSession[]
+  cashMovements CashMovement[]
+  auditLogs     AuditLog[]
+  memberships   RestaurantMember[]
+  refreshTokens RefreshToken[]
 
   @@index([role])
   @@map("users")
 }
 
+/// Tokens de refresh activos por usuario. Permite rotación: cada /auth/refresh
+/// revoca el jti anterior y emite uno nuevo, anulando cualquier refresh
+/// filtrado en cuanto se detecta. La cookie httpOnly del frontend lleva el JWT
+/// cuyo `jti` debe existir y no estar revocado aquí.
+model RefreshToken {
+  id           String    @id @default(uuid())
+  /// Identificador único del JWT (claim `jti`). Indexado/único para lookup
+  /// rápido en cada /auth/refresh.
+  jti          String    @unique
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Cuándo expira el JWT (alineado con JWT_REFRESH_EXPIRES_IN).
+  expiresAt    DateTime
+  /// Si está set, el token está revocado y no puede usarse.
+  revokedAt    DateTime?
+  /// jti del token que REEMPLAZÓ a este (para trazabilidad de la rotación).
+  replacedById String?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
+}
+
 // --------------------------------------------------------------------------
-// Configuración y marca del restaurante (fila única)
+// Configuración del tenant (fila única)
+// Marca por defecto; cada `Restaurant` puede sobreescribirla.
 // --------------------------------------------------------------------------
 
 model RestaurantSettings {
@@ -113,12 +165,69 @@ model RestaurantSettings {
 }
 
 // --------------------------------------------------------------------------
-// Mesas
+// Locales / Establecimientos
+// --------------------------------------------------------------------------
+
+model Restaurant {
+  id      String  @id @default(uuid())
+  /// Identificador legible y corto para URLs/QR (p. ej. "miraflores").
+  slug    String  @unique
+  name    String
+  address String?
+  phone   String?
+
+  /// Marca opcional que SOBREESCRIBE la del tenant (RestaurantSettings).
+  /// Si es null, el frontend hace fallback a la marca del tenant.
+  primaryColor   String?
+  secondaryColor String?
+  logoUrl        String?
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tables         Table[]
+  menuCategories MenuCategory[]
+  dishes         Dish[]
+  orders         Order[]
+  cashSessions   CashSession[]
+  members        RestaurantMember[]
+  auditLogs      AuditLog[]
+
+  @@index([active])
+  @@map("restaurants")
+}
+
+/// Membresía de un usuario en un local. Define su rol DENTRO de ese local.
+/// Un usuario puede pertenecer a varios locales con roles distintos.
+model RestaurantMember {
+  id           String   @id @default(uuid())
+  userId       String
+  restaurantId String
+  role         UserRole
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@index([restaurantId])
+  @@index([userId])
+  @@map("restaurant_members")
+}
+
+// --------------------------------------------------------------------------
+// Mesas (por local)
 // --------------------------------------------------------------------------
 
 model Table {
-  id        String      @id @default(uuid())
-  number    Int         @unique
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  number    Int
   name      String?
   capacity  Int         @default(4)
   status    TableStatus @default(LIBRE)
@@ -131,17 +240,23 @@ model Table {
 
   orders Order[]
 
+  /// El número de mesa es único DENTRO del local, no global.
+  @@unique([restaurantId, number])
   @@index([status])
+  @@index([restaurantId])
   @@map("tables")
 }
 
 // --------------------------------------------------------------------------
-// Carta (categorías y platos)
+// Carta (categorías y platos) — por local
 // --------------------------------------------------------------------------
 
 model MenuCategory {
-  id        String   @id @default(uuid())
-  name      String   @unique
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name      String
   sortOrder Int      @default(0)
   /// true para las categorías base sembradas (Entradas, Platos principales...).
   isSystem  Boolean  @default(false)
@@ -151,25 +266,32 @@ model MenuCategory {
 
   dishes Dish[]
 
+  /// El nombre de categoría es único DENTRO del local.
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
   @@map("menu_categories")
 }
 
 model Dish {
-  id          String   @id @default(uuid())
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
   name        String
   description String?
-  price       Decimal  @db.Decimal(10, 2)
+  price       Decimal      @db.Decimal(10, 2)
   imageUrl    String?
-  active      Boolean  @default(true)
+  active      Boolean      @default(true)
   categoryId  String
   category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   orderItems OrderItem[]
 
   @@index([categoryId])
   @@index([active])
+  @@index([restaurantId])
   @@map("dishes")
 }
 
@@ -178,20 +300,22 @@ model Dish {
 // --------------------------------------------------------------------------
 
 model Order {
-  id         String      @id @default(uuid())
+  id           String      @id @default(uuid())
   /// Número correlativo legible para el personal.
-  code       Int         @default(autoincrement())
-  tableId    String
-  table      Table       @relation(fields: [tableId], references: [id], onDelete: Restrict)
-  status     OrderStatus @default(ABIERTA)
-  notes      String?
+  code         Int         @default(autoincrement())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  tableId      String
+  table        Table       @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  status       OrderStatus @default(ABIERTA)
+  notes        String?
 
   openedById String
-  openedBy   User        @relation("OrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  openedBy   User   @relation("OrderOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
 
-  openedAt   DateTime    @default(now())
-  closedAt   DateTime?
-  updatedAt  DateTime    @updatedAt
+  openedAt  DateTime  @default(now())
+  closedAt  DateTime?
+  updatedAt DateTime  @updatedAt
 
   items      OrderItem[]
   billGroups BillGroup[]
@@ -199,21 +323,27 @@ model Order {
 
   @@index([status])
   @@index([tableId])
+  @@index([restaurantId])
+  @@index([openedAt])
   @@map("orders")
 }
 
 model OrderItem {
-  id        String          @id @default(uuid())
-  orderId   String
-  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  dishId    String
-  dish      Dish            @relation(fields: [dishId], references: [id], onDelete: Restrict)
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dishId  String
+  dish    Dish   @relation(fields: [dishId], references: [id], onDelete: Restrict)
 
   /// Precio del plato al momento del pedido (snapshot, no se ve afectado por
   /// cambios posteriores en la carta).
   unitPrice Decimal         @db.Decimal(10, 2)
   quantity  Int             @default(1)
-  notes     String?         // p. ej. "Sin cebolla"
+  /// Nombre del plato al momento del pedido (snapshot). Sobrevive a cambios
+  /// de nombre y a la eliminación del plato, así el histórico sigue
+  /// mostrando lo que el cliente pidió aunque la carta cambie.
+  dishName  String
+  notes     String? // p. ej. "Sin cebolla"
   status    OrderItemStatus @default(PENDIENTE)
 
   /// Protección de platos entregados: cuando un ítem entregado se corrige, el
@@ -225,8 +355,8 @@ model OrderItem {
   replacedBy     OrderItem? @relation("ItemReplacement")
 
   deliveredAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   billGroupItems BillGroupItem[]
 
@@ -236,7 +366,7 @@ model OrderItem {
 }
 
 // --------------------------------------------------------------------------
-// División de cuenta (split)
+// División de cuenta (split) — por pedido (transitivo del local)
 // --------------------------------------------------------------------------
 
 model BillGroup {
@@ -281,16 +411,16 @@ model BillGroupItem {
 // --------------------------------------------------------------------------
 
 model Payment {
-  id          String        @id @default(uuid())
+  id          String     @id @default(uuid())
   orderId     String
-  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   /// Pago asociado a un grupo de cuenta específico (split). Null = pago global.
   billGroupId String?
-  billGroup   BillGroup?    @relation(fields: [billGroupId], references: [id], onDelete: SetNull)
+  billGroup   BillGroup? @relation(fields: [billGroupId], references: [id], onDelete: SetNull)
 
   method    PaymentMethod
   amount    Decimal       @db.Decimal(10, 2)
-  reference String?       // n.° de operación de Yape/Plin/tarjeta (opcional)
+  reference String? // n.° de operación de Yape/Plin/tarjeta (opcional)
 
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
@@ -303,67 +433,80 @@ model Payment {
 }
 
 // --------------------------------------------------------------------------
-// Control de caja diario
+// Control de caja diario (por local)
 // --------------------------------------------------------------------------
 
 model CashSession {
-  id            String            @id @default(uuid())
-  openingAmount Decimal           @db.Decimal(10, 2)
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  openingAmount  Decimal           @db.Decimal(10, 2)
   /// Monto esperado al cierre = apertura + ingresos − egresos + ventas en efectivo.
-  expectedAmount Decimal?         @db.Decimal(10, 2)
+  expectedAmount Decimal?          @db.Decimal(10, 2)
   /// Monto real contado al cierre.
-  actualAmount  Decimal?          @db.Decimal(10, 2)
+  actualAmount   Decimal?          @db.Decimal(10, 2)
   /// Diferencia = real − esperado (negativa = faltante).
-  difference    Decimal?          @db.Decimal(10, 2)
-  status        CashSessionStatus @default(ABIERTA)
-  notes         String?
+  difference     Decimal?          @db.Decimal(10, 2)
+  status         CashSessionStatus @default(ABIERTA)
+  notes          String?
 
   openedById String
-  openedBy   User     @relation(fields: [openedById], references: [id], onDelete: Restrict)
-  openedAt   DateTime @default(now())
+  openedBy   User      @relation(fields: [openedById], references: [id], onDelete: Restrict)
+  openedAt   DateTime  @default(now())
   closedAt   DateTime?
 
   movements CashMovement[]
 
   @@index([status])
+  @@index([restaurantId])
+  @@index([openedAt])
   @@map("cash_sessions")
 }
 
 model CashMovement {
-  id          String           @id @default(uuid())
-  sessionId   String
-  session     CashSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  type        CashMovementType
-  amount      Decimal          @db.Decimal(10, 2)
-  description String
+  id           String           @id @default(uuid())
+  sessionId    String
+  session      CashSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  /// Denormalizado para queries/scopes rápidos (p. ej. reportes por local).
+  restaurantId String
+  type         CashMovementType
+  amount       Decimal          @db.Decimal(10, 2)
+  description  String
 
   createdById String
   createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
   createdAt   DateTime @default(now())
 
   @@index([sessionId])
+  @@index([restaurantId])
   @@map("cash_movements")
 }
 
 // --------------------------------------------------------------------------
-// Auditoría
+// Auditoría (scopeada opcionalmente por local)
 // --------------------------------------------------------------------------
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id           String      @id @default(uuid())
+  userId       String?
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   /// Acción realizada (p. ej. "ORDER_CREATED", "PAYMENT_REGISTERED").
-  action    String
+  action       String
   /// Entidad afectada (p. ej. "Order", "Dish").
-  entity    String
-  entityId  String?
+  entity       String
+  entityId     String?
+  /// Local al que aplica la acción. Null para acciones globales (gestión de
+  /// locales, usuarios, etc.).
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   /// Detalle adicional en JSON (valores previos/nuevos, montos, etc.).
-  metadata  Json?
-  createdAt DateTime @default(now())
+  metadata     Json?
+  createdAt    DateTime    @default(now())
 
   @@index([userId])
   @@index([entity, entityId])
   @@index([createdAt])
+  @@index([restaurantId])
   @@map("audit_logs")
 }

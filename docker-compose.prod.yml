@@ -1,0 +1,117 @@
+# =============================================================================
+# Sistema de Gestión de Restaurantes — Orquestación para PRODUCCIÓN
+# Levanta Postgres + API + Web detrás de un reverse-proxy Traefik ya existente
+# (network externa `traefik-public` con entrypoints `web`/`websecure` y
+# certresolver `letsencrypt`).
+#
+# Requisitos:
+#   1. Una red Docker externa llamada `traefik-public` donde Traefik escucha
+#      (configurada por el operador del host). Ver `docs/DEPLOYMENT.md`.
+#   2. Variables en `.env`: DOMAIN, JWT_*, SEED_ADMIN_*, acme_email, etc.
+#
+# Uso:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: restaurante_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-restaurante}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerida}
+      POSTGRES_DB: ${POSTGRES_DB:-restaurante}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-restaurante} -d ${POSTGRES_DB:-restaurante}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - restaurante-internal
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: restaurante_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: America/Lima
+      NODE_ENV: production
+      API_PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET requerida}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET requerida}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://${DOMAIN}}
+      # Forzar Secure en la cookie httpOnly (porque la request llega
+      # por HTTPS gracias a Traefik).
+      COOKIE_SECURE: 'true'
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@restaurante.pe}
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin1234}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrador}
+    expose:
+      - '3000'
+    healthcheck:
+      # /api/auth/me existe y devuelve 200 cuando hay token; en cambio
+      # un GET a / devuelve 404. Para un healthcheck "always 200" usamos
+      # el endpoint raíz de Swagger: /api/docs.
+      test:
+        - 'CMD-SHELL'
+        - 'wget -q -O /dev/null http://localhost:3000/api/docs || exit 1'
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - restaurante-internal
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      # El frontend hace proxy al backend vía el nginx interno; la API_URL
+      # no es relevante aquí (el nginx reescribe /api/* al servicio api).
+      args:
+        API_URL: http://api:3000
+    container_name: restaurante_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    labels:
+      # Traefik descubre el servicio por labels. Requiere red `traefik-public`.
+      - traefik.enable=true
+      - traefik.http.routers.web-secure.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.web-secure.entrypoints=websecure
+      - traefik.http.routers.web-secure.tls=true
+      - traefik.http.routers.web-secure.tls.certresolver=letsencrypt
+      # Redirección HTTP → HTTPS.
+      - traefik.http.routers.web-http.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.web-http.entrypoints=web
+      - traefik.http.routers.web-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      # Backend del load balancer.
+      - traefik.http.services.web-svc.loadbalancer.server.port=80
+      # Healthcheck interno.
+      - traefik.http.services.web-svc.loadbalancer.healthcheck.path=/api/docs
+    networks:
+      - traefik-public
+      - restaurante-internal
+
+networks:
+  traefik-public:
+    # Red compartida con Traefik. Debe existir ANTES de levantar este compose
+    # (ej: `docker network create traefik-public`).
+    external: true
+  restaurante-internal:
+    driver: bridge
+
+volumes:
+  postgres_data:

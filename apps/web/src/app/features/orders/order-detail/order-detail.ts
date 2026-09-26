@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
@@ -11,6 +11,8 @@ import {
 } from '@restaurante/shared-types';
 import { OrdersApi } from '../../../core/data/orders.api';
 import { MenuApi } from '../../../core/data/menu.api';
+import { ConfirmService } from '../../../core/services/confirm.service';
+import { ActiveRestaurantService } from '../../../core/services/active-restaurant.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SolesPipe } from '../../../shared/pipes/soles.pipe';
 import { EnumLabelPipe } from '../../../shared/pipes/enum-label.pipe';
@@ -27,12 +29,14 @@ interface PaymentMethodOption {
   templateUrl: './order-detail.html',
   styleUrl: './order-detail.scss',
 })
-export class OrderDetailPage implements OnInit {
+export class OrderDetailPage {
   private readonly ordersApi = inject(OrdersApi);
   private readonly menuApi = inject(MenuApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly OrderStatus = OrderStatus;
 
@@ -74,13 +78,19 @@ export class OrderDetailPage implements OnInit {
 
   readonly activeItems = computed(() => this.order()?.items.filter((i) => !i.isModified) ?? []);
 
-  ngOnInit(): void {
+  /** Modo read-only: true cuando se navega desde /historial/:orderId. */
+  readonly readonly = signal(this.route.snapshot.url[0]?.path === 'historial');
+
+  constructor() {
     this.orderId = this.route.snapshot.paramMap.get('orderId') ?? '';
-    void this.load();
+    effect(() => {
+      this.active.activeRestaurantId();
+      untracked(() => void this.load());
+    });
   }
 
   back(): void {
-    void this.router.navigate(['/mesas']);
+    void this.router.navigate([this.readonly() ? '/historial' : '/mesas']);
   }
 
   async load(): Promise<void> {
@@ -105,7 +115,7 @@ export class OrderDetailPage implements OnInit {
     this.order.set(order);
     // Por defecto, el monto a cobrar es el saldo pendiente del pedido.
     this.payAmount.set(order.balance);
-    if (order.status === OrderStatus.CERRADA) {
+    if (order.status === OrderStatus.CERRADA && !this.readonly()) {
       this.notify.success('Pedido pagado y cerrado.');
       setTimeout(() => void this.router.navigate(['/mesas']), 1200);
     }
@@ -160,7 +170,13 @@ export class OrderDetailPage implements OnInit {
   }
 
   async cancelOrder(): Promise<void> {
-    if (!confirm('¿Anular este pedido? Esta acción libera la mesa.')) return;
+    const ok = await this.confirm.confirm({
+      title: 'Anular pedido',
+      message: '¿Anular este pedido? Esta acción libera la mesa.',
+      confirmText: 'Anular pedido',
+      variant: 'danger',
+    });
+    if (!ok) return;
     await this.ordersApi.cancel(this.orderId);
     this.notify.success('Pedido anulado.');
     void this.router.navigate(['/mesas']);

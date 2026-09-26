@@ -1,0 +1,113 @@
+.select-restaurant {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: var(--surface-2, #f7fafc);
+}
+
+.card {
+  width: 100%;
+  max-width: 720px;
+  background: var(--surface-1, #fff);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+  padding: 2rem;
+}
+
+.head h1 {
+  margin: 0 0 0.4rem;
+  font-family: 'Fraunces', serif;
+  font-size: 1.6rem;
+  color: var(--ink, #1a202c);
+}
+
+.head p {
+  margin: 0 0 1.6rem;
+  color: var(--muted, #64748b);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.restaurant-card {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem;
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--brand-primary, #E63946);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  }
+
+  &.active {
+    border-color: var(--brand-primary, #E63946);
+    background: color-mix(in srgb, var(--brand-primary) 6%, transparent);
+  }
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--brand-primary, #E63946);
+  color: var(--brand-primary-contrast, #fff);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.meta strong {
+  font-size: 1rem;
+  color: var(--ink, #1a202c);
+}
+
+.meta small {
+  font-size: 0.82rem;
+}
+
+.role {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  color: var(--brand-primary, #E63946);
+  align-self: flex-start;
+  margin-top: 0.25rem;
+
+  &.muted {
+    background: var(--surface-2, #f1f5f9);
+    color: var(--muted, #64748b);
+  }
+}
+
+.chev {
+  color: var(--muted, #94a3b8);
+  transform: rotate(-90deg);
+}

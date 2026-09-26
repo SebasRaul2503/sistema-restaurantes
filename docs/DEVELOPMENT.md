@@ -61,12 +61,42 @@ pnpm dev:web     # Angular http://localhost:4200 (watch, proxy /api → :3000)
 > **compilado** (`packages/shared-types/dist`). Si editas ese paquete, recompílalo:
 > `pnpm --filter @restaurante/shared-types build`.
 
-### Credenciales de ejemplo (seed)
+### Credenciales de ejemplo (seed inicial)
 
-| Rol | Correo | Contraseña |
+El seed inicial crea lo mínimo para arrancar el sistema por primera vez:
+
+- **1 usuario administrador** (superadmin — sin membresía, ve y opera todos los locales).
+- **1 local** llamado `principal` (puedes agregar más desde la pantalla `/locales`).
+- **1 mesa** registrada.
+- **4 categorías base** del sistema (Entradas, Platos principales, Bebidas, Postres) **sin platos**.
+
+| Rol | Identificador | Contraseña |
 |-----|--------|-----------|
-| Administrador | `admin@restaurante.pe` | `Admin1234` |
-| Mesero / Operador | `mesero@restaurante.pe` | `Mesero1234` |
+| Administrador | `admin@restaurante.pe` (email) | `Admin1234` |
+
+Tras el primer login, completa la configuración desde la web: crea usuarios,
+agrega mesas, platos y locales adicionales según necesidad.
+
+### Identificador de login (email o username)
+
+Cualquier usuario se identifica con **email** o **username** (al menos uno
+obligatorio). Los admins suelen usar email; los meseros/operadores pueden
+usar solo un username corto (3-30 caracteres, lowercase, `[a-z0-9_-]`).
+
+```bash
+# Login con email
+POST /auth/login { "identifier": "admin@restaurante.pe", "password": "..." }
+
+# Login con username
+POST /auth/login { "identifier": "jperez", "password": "..." }
+```
+
+El backend detecta el tipo por la presencia de `@`. La búsqueda es
+case-insensitive (siempre se guarda en minúsculas).
+
+Los usernames son únicos globalmente. El admin puede crear usuarios
+desde `/usuarios`; el formulario valida que al menos uno de email/username
+est presente.
 
 ---
 
@@ -152,9 +182,15 @@ Guards, pipe y prefijo `/api` se configuran globalmente en `src/main.ts`.
 - **Autorización:** todo requiere sesión por defecto. Abre rutas con `@Public()`,
   restríngelas con `@Roles(UserRole.ADMIN)`. Inyecta el usuario con
   `@CurrentUser()`.
+- **Scoping por local:** todas las rutas operativas requieren un local activo
+  (header `X-Restaurant-Id`). El `LocalGuard` global lo resuelve y valida el
+  acceso. Inyecta el local con `@CurrentRestaurant('id')`. Marca las rutas que
+  no necesitan local con `@SkipRestaurant()`.
 - **Auditoría:** registra acciones sensibles con
-  `AuditService.record({ userId, action, entity, entityId, metadata })`. Acepta un
-  cliente de transacción para registrar dentro de la misma transacción.
+  `AuditService.record({ userId, action, entity, entityId, restaurantId, metadata })`.
+  Acepta un cliente de transacción para registrar dentro de la misma
+  transacción. `restaurantId` es opcional (null para acciones globales como
+  crear un local).
 - **Validación:** cada DTO usa `class-validator` con **mensajes en español**.
 - **Swagger:** decora con `@ApiTags`, `@ApiBearerAuth`, `@ApiOperation`.
 
@@ -178,11 +214,14 @@ Guards, pipe y prefijo `/api` se configuran globalmente en `src/main.ts`.
 apps/web/src/app/
   core/
     data/        *.api.ts   → clientes tipados por dominio (única vía de acceso a la API)
-    services/    auth, theme, notification, api (HttpClient base)
-    guards/      authGuard, adminGuard
-    interceptors/ authInterceptor (Bearer), errorInterceptor (toasts + refresh)
+    services/    auth (en memoria, sin localStorage), theme, notification,
+                  api (HttpClient con withCredentials: true)
+    guards/      authGuard, adminGuard, requireLocalGuard
+    interceptors/ authInterceptor (Bearer), restaurantInterceptor
+                  (X-Restaurant-Id), errorInterceptor (toasts + refresh)
   shared/
-    components/  Icon (SVG Lucide), ToastContainer, DateField (dd/mm/aaaa)
+    components/  Icon (SVG Lucide), ToastContainer, DateField (dd/mm/aaaa),
+                  RestaurantSelector (dropdown del topbar)
     pipes/       SolesPipe (| soles), EnumLabelPipe (| enumLabel:'...')
   layouts/       MainLayout (sidebar + topbar, drawer móvil)
   features/      una carpeta por pantalla (componentes standalone)

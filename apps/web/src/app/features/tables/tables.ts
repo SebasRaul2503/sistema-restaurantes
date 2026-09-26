@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
@@ -9,6 +9,8 @@ import {
 import { TablesApi } from '../../core/data/tables.api';
 import { OrdersApi } from '../../core/data/orders.api';
 import { AuthService } from '../../core/services/auth.service';
+import { ActiveRestaurantService } from '../../core/services/active-restaurant.service';
+import { ConfirmService } from '../../core/services/confirm.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { EnumLabelPipe } from '../../shared/pipes/enum-label.pipe';
 import { SolesPipe } from '../../shared/pipes/soles.pipe';
@@ -35,11 +37,13 @@ interface EditTableForm {
   templateUrl: './tables.html',
   styleUrl: './tables.scss',
 })
-export class TablesPage implements OnInit {
+export class TablesPage {
   private readonly tablesApi = inject(TablesApi);
   private readonly ordersApi = inject(OrdersApi);
   private readonly auth = inject(AuthService);
+  private readonly active = inject(ActiveRestaurantService);
   private readonly notify = inject(NotificationService);
+  private readonly confirm = inject(ConfirmService);
   private readonly router = inject(Router);
 
   readonly isAdmin = this.auth.isAdmin;
@@ -85,8 +89,11 @@ export class TablesPage implements OnInit {
 
   readonly TableStatus = TableStatus;
 
-  ngOnInit(): void {
-    void this.refresh();
+  constructor() {
+    effect(() => {
+      this.active.activeRestaurantId();
+      untracked(() => void this.refresh());
+    });
   }
 
   async refresh(): Promise<void> {
@@ -210,6 +217,13 @@ export class TablesPage implements OnInit {
   }
 
   async removeTable(card: TableCard): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Desactivar mesa',
+      message: `¿Desactivar la mesa ${card.number}? Los pedidos en curso no se ven afectados.`,
+      confirmText: 'Desactivar',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await this.tablesApi.remove(card.id);
       this.notify.success(`Mesa ${card.number} desactivada`);

@@ -13,23 +13,127 @@ import {
 
 export interface AuthUser {
   id: string;
-  email: string;
+  /** Email opcional (puede ser null si el usuario solo tiene username). */
+  email: string | null;
+  /** Username opcional (puede ser null si el usuario solo tiene email). */
+  username: string | null;
   name: string;
   role: UserRole;
 }
 
+/**
+ * El access token vive en memoria del cliente (signal). El refresh token
+ * viaja como cookie httpOnly: el browser lo envía solo a /api/auth/* y el
+ * backend lo lee de la cookie. No se expone al JS ni a XSS.
+ */
 export interface AuthTokens {
   accessToken: string;
-  refreshToken: string;
 }
 
 export interface LoginResponse extends AuthTokens {
   user: AuthUser;
 }
 
+// --- Multi-local: Locales (establecimientos) y membresías ---
+
+/** Local/establecimiento. La marca puede sobreescribir la del tenant. */
+export interface RestaurantDto {
+  id: string;
+  slug: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Resumen del local con el rol del usuario actual DENTRO de él. */
+export interface MyRestaurantDto extends RestaurantDto {
+  /** Rol del usuario en este local. Null = superadmin (ve todo sin membresía). */
+  role: UserRole | null;
+  memberActive: boolean | null;
+}
+
+/** Membresía de un usuario en un local. */
+export interface RestaurantMemberDto {
+  id: string;
+  userId: string;
+  userName: string;
+  /** Email del usuario si tiene; si no, null. */
+  userEmail: string | null;
+  /** Username del usuario si tiene; si no, null. */
+  userUsername: string | null;
+  restaurantId: string;
+  role: UserRole;
+  active: boolean;
+  createdAt: string;
+}
+
+/** Payload para crear un local. */
+export interface CreateRestaurantDto {
+  slug: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  logoUrl?: string;
+}
+
+/** Payload para actualizar un local. */
+export interface UpdateRestaurantDto {
+  slug?: string;
+  name?: string;
+  address?: string;
+  phone?: string;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  logoUrl?: string | null;
+  active?: boolean;
+}
+
+/** Payload para asignar un miembro. */
+export interface CreateMemberDto {
+  userId: string;
+  role: UserRole;
+}
+
+/** Payload para actualizar un miembro. */
+export interface UpdateMemberDto {
+  role?: UserRole;
+  active?: boolean;
+}
+
+/** Marca efectiva para un local (override o tenant). */
+export interface RestaurantThemeDto {
+  name: string;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+}
+
+/** Respuesta extendida de `/api/auth/me`: usuario + locales disponibles. */
+export interface MeResponse {
+  user: AuthUser;
+  restaurants: MyRestaurantDto[];
+  /**
+   * Local activo persistido o null. Lo decide el backend según el header
+   * `X-Restaurant-Id` enviado por la web; si no viene o el usuario no tiene
+   * acceso, devuelve null.
+   */
+  activeRestaurantId: string | null;
+  /** true si el usuario es superadmin (rol ADMIN sin membresías). */
+  isSuperAdmin: boolean;
+}
+
 export interface UserDto {
   id: string;
-  email: string;
+  email: string | null;
+  username: string | null;
   name: string;
   role: UserRole;
   active: boolean;
@@ -84,6 +188,7 @@ export interface DishDto {
 export interface OrderItemDto {
   id: string;
   dishId: string;
+  /** Snapshot del nombre del plato. Sobrevive a cambios de nombre y a la eliminación del plato. */
   dishName: string;
   unitPrice: number;
   quantity: number;
@@ -106,6 +211,7 @@ export interface OrderSummaryDto {
   paid: number;
   balance: number;
   openedAt: string;
+  closedAt: string | null;
 }
 
 export interface OrderDto extends OrderSummaryDto {
@@ -115,6 +221,25 @@ export interface OrderDto extends OrderSummaryDto {
   items: OrderItemDto[];
   billGroups: BillGroupDto[];
   payments: PaymentDto[];
+}
+
+// --- Historial de pedidos (solo lectura, solo ADMIN) ---
+
+/** Filtros del endpoint /orders/history. */
+export interface OrderHistoryFilterDto {
+  from?: string;
+  to?: string;
+  status?: 'cerrados' | 'anulados' | 'todos';
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedOrdersDto {
+  items: OrderSummaryDto[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface BillGroupItemDto {

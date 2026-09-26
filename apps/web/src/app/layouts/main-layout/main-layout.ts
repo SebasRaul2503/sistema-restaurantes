@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 import { Icon } from '../../shared/components/icon/icon';
+import { RestaurantSelector } from '../../shared/components/restaurant-selector/restaurant-selector';
 
 interface NavItem {
   path: string;
@@ -16,7 +17,7 @@ const MOBILE_BREAKPOINT = 900;
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, RestaurantSelector],
   templateUrl: './main-layout.html',
   styleUrl: './main-layout.scss',
 })
@@ -38,6 +39,8 @@ export class MainLayout {
     { path: '/caja', label: 'Caja', icon: 'cash' },
     { path: '/carta', label: 'Carta', icon: 'menu', adminOnly: true },
     { path: '/reportes', label: 'Reportes', icon: 'reports', adminOnly: true },
+    { path: '/historial', label: 'Historial', icon: 'clock', adminOnly: true },
+    { path: '/locales', label: 'Locales', icon: 'building', adminOnly: true },
     { path: '/usuarios', label: 'Usuarios', icon: 'users', adminOnly: true },
     { path: '/configuracion', label: 'Configuración', icon: 'settings', adminOnly: true },
     { path: '/soporte', label: 'Soporte', icon: 'lifebuoy' },
@@ -68,7 +71,7 @@ export class MainLayout {
   }
 
   logout(): void {
-    this.auth.logout();
+    void this.auth.confirmAndLogout();
   }
 
   initials(name: string | undefined): string {

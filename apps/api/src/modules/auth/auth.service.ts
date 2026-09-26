@@ -2,10 +2,23 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { LoginResponse, UserRole } from '@restaurante/shared-types';
+import { randomUUID } from 'crypto';
+import { LoginResponse, MeResponse, UserRole } from '@restaurante/shared-types';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { RestaurantsService } from '../restaurants/restaurants.service';
 import { JwtPayload } from './strategies/jwt.strategy';
+
+export interface RefreshJwtPayload extends JwtPayload {
+  jti: string;
+}
+
+/** Resultado interno de login/refresh: el controller setea la cookie con refreshToken. */
+interface LoginResult {
+  accessToken: string;
+  refreshToken: string;
+  user: { id: string; email: string | null; username: string | null; name: string; role: UserRole };
+}
 
 @Injectable()
 export class AuthService {
@@ -14,10 +27,18 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly restaurants: RestaurantsService,
   ) {}
 
-  async login(email: string, password: string): Promise<LoginResponse> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+  async login(identifier: string, password: string): Promise<LoginResult> {
+    // El identificador puede ser email o username. Detectamos por la
+    // presencia de '@' para minimizar queries en el caso común.
+    const isEmail = identifier.includes('@');
+    const normalized = identifier.trim().toLowerCase();
+    const user = isEmail
+      ? await this.prisma.user.findUnique({ where: { email: normalized } })
+      : await this.prisma.user.findUnique({ where: { username: normalized } });
+
     if (!user || !user.active) {
       throw new UnauthorizedException('Credenciales incorrectas.');
     }
@@ -34,17 +55,36 @@ export class AuthService {
       entityId: user.id,
     });
 
-    const tokens = await this.issueTokens(user.id, user.email, user.role as UserRole);
+    const { accessToken, refreshToken } = await this.issueTokens(
+      user.id,
+      user.email,
+      user.role as UserRole,
+    );
     return {
-      ...tokens,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        role: user.role as UserRole,
+      },
     };
   }
 
-  async refresh(refreshToken: string): Promise<LoginResponse> {
-    let payload: JwtPayload;
+  /**
+   * Renueva el access token rotando el refresh: el jti anterior se marca
+   * como revocado y se emite uno nuevo. Si el jti no existe, está revocado
+   * o expiró, se rechaza.
+   *
+   * Devuelve `LoginResponse` (accessToken + user) para que el cliente pueda
+   * rehidratar la sesión completa en un solo request tras la rotación.
+   */
+  async refresh(refreshTokenJwt: string): Promise<LoginResult> {
+    let payload: RefreshJwtPayload;
     try {
-      payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, {
+      payload = await this.jwt.verifyAsync<RefreshJwtPayload>(refreshTokenJwt, {
         secret: this.config.get<string>('jwt.refreshSecret'),
       });
     } catch {
@@ -56,25 +96,170 @@ export class AuthService {
       throw new UnauthorizedException('Sesión no válida.');
     }
 
+    const stored = await this.prisma.refreshToken.findUnique({ where: { jti: payload.jti } });
+    if (!stored || stored.revokedAt !== null || stored.expiresAt < new Date()) {
+      throw new UnauthorizedException('Sesión inválida o revocada.');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { revokedAt: new Date() },
+    });
+
     const tokens = await this.issueTokens(user.id, user.email, user.role as UserRole);
+    await this.prisma.refreshToken.update({
+      where: { jti: tokens.jti },
+      data: { replacedById: stored.jti },
+    });
+
     return {
-      ...tokens,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        role: user.role as UserRole,
+      },
     };
   }
 
-  private async issueTokens(sub: string, email: string, role: UserRole) {
-    const payload: JwtPayload = { sub, email, role };
+  /**
+   * Revoca el refresh token presentado. Si no se presenta ninguno, revoca
+   * todos los activos del usuario (logout total).
+   */
+  async logout(userId: string, refreshTokenJwt?: string): Promise<void> {
+    if (refreshTokenJwt) {
+      try {
+        const payload = await this.jwt.verifyAsync<RefreshJwtPayload>(refreshTokenJwt, {
+          secret: this.config.get<string>('jwt.refreshSecret'),
+        });
+        await this.prisma.refreshToken.updateMany({
+          where: { jti: payload.jti, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      } catch {
+        // Token inválido o expirado: ignorar, igual limpiamos la cookie en el cliente.
+      }
+    } else {
+      // Logout total: revoca todos los refresh activos del usuario.
+      await this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+
+    await this.audit.record({
+      userId,
+      action: 'USER_LOGOUT',
+      entity: 'User',
+      entityId: userId,
+    });
+  }
+
+  /**
+   * Emite un access token (vida corta, en memoria en el cliente) y un refresh
+   * token (vida larga, en cookie httpOnly). El jti del refresh se persiste en
+   * DB para soportar rotación.
+   */
+  private async issueTokens(
+    sub: string,
+    email: string | null,
+    role: UserRole,
+  ): Promise<{ accessToken: string; refreshToken: string; jti: string }> {
+    const accessPayload: JwtPayload = { sub, email, role };
+    const jti = randomUUID();
+    const refreshPayload: RefreshJwtPayload = { sub, email, role, jti };
+
+    const expiresIn = this.config.get<string>('jwt.refreshExpiresIn') ?? '7d';
+    const expiresAt = this.parseExpiry(expiresIn);
+
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwt.signAsync(payload, {
+      this.jwt.signAsync(accessPayload, {
         secret: this.config.get<string>('jwt.accessSecret'),
         expiresIn: this.config.get<string>('jwt.accessExpiresIn'),
       }),
-      this.jwt.signAsync(payload, {
+      this.jwt.signAsync(refreshPayload, {
         secret: this.config.get<string>('jwt.refreshSecret'),
-        expiresIn: this.config.get<string>('jwt.refreshExpiresIn'),
+        expiresIn,
       }),
     ]);
-    return { accessToken, refreshToken };
+
+    await this.prisma.refreshToken.create({
+      data: {
+        jti,
+        userId: sub,
+        expiresAt,
+      },
+    });
+
+    return { accessToken, refreshToken, jti };
+  }
+
+  /** Convierte "7d" / "15m" / "3600s" a un Date futuro. */
+  private parseExpiry(value: string): Date {
+    const match = /^(\d+)\s*(s|m|h|d)?$/.exec(value.trim());
+    const n = match ? parseInt(match[1], 10) : 7;
+    const unit = match?.[2];
+    const seconds =
+      unit === 's' ? n : unit === 'm' ? n * 60 : unit === 'h' ? n * 3600 : n * 86400;
+    return new Date(Date.now() + seconds * 1000);
+  }
+
+  /**
+   * Devuelve la información del usuario para `/auth/me` junto con sus locales
+   * y el local activo.
+   *
+   - Si la petición trae `X-Restaurant-Id` y el usuario tiene acceso, se
+   *   usa ese.
+   * - Si no, se usa `user.lastRestaurantId` (persistido por el LocalGuard)
+   *   siempre que siga siendo válido. Esto permite que la sesión se
+   *   rehidrate con el último local activo tras recargar la pestaña.
+   * - Si ninguno es válido, se devuelve `activeRestaurantId: null` y el
+   *   frontend muestra la pantalla de selección si hay varios locales.
+   */
+  async me(userId: string, role: UserRole, activeRestaurantId: string | null): Promise<MeResponse> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new UnauthorizedException('Sesión no válida.');
+    }
+
+    const restaurants = await this.restaurants.listForUser(userId, role);
+    const memberCount = await this.prisma.restaurantMember.count({ where: { userId } });
+    const isSuperAdmin = role === 'ADMIN' && memberCount === 0;
+
+    // Si no hay header X-Restaurant-Id, intenta con el último local persistido.
+    // Si el local sugerido está desactivado, no se sugiere.
+    const candidateId = activeRestaurantId ?? user.lastRestaurantId ?? null;
+    let resolvedActive: string | null = null;
+    if (candidateId) {
+      if (isSuperAdmin) {
+        const r = await this.prisma.restaurant.findUnique({
+          where: { id: candidateId },
+          select: { id: true, active: true },
+        });
+        if (r?.active) resolvedActive = candidateId;
+      } else {
+        const m = await this.prisma.restaurantMember.findUnique({
+          where: { userId_restaurantId: { userId, restaurantId: candidateId } },
+          include: { restaurant: { select: { active: true } } },
+        });
+        if (m?.active && m.restaurant.active) resolvedActive = candidateId;
+      }
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        name: user.name,
+        role: user.role as UserRole,
+      },
+      restaurants,
+      activeRestaurantId: resolvedActive,
+      isSuperAdmin,
+    };
   }
 }

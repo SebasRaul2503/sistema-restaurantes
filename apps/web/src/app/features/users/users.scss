@@ -45,3 +45,18 @@
   background: var(--color-surface-2);
   padding: var(--space-5);
 }
+
+.identifier {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.85rem;
+  color: var(--ink, #1a202c);
+  background: var(--surface-2, #f1f5f9);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+
+.section-hint {
+  margin: -0.4rem 0 1rem;
+  font-size: 0.85rem;
+  color: var(--muted, #64748b);
+}

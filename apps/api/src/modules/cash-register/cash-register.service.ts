@@ -29,24 +29,40 @@ export class CashRegisterService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Sesión de caja abierta actual (o null si no hay ninguna). */
-  async current(): Promise<CashSessionDto | null> {
+  private ensureRestaurant(restaurantId: string): void {
+    if (!restaurantId) {
+      throw new BadRequestException('No se ha seleccionado un local activo.');
+    }
+  }
+
+  /** Sesión de caja abierta actual del local (o null si no hay ninguna). */
+  async current(restaurantId: string): Promise<CashSessionDto | null> {
+    this.ensureRestaurant(restaurantId);
     const session = await this.prisma.cashSession.findFirst({
-      where: { status: CashSessionStatus.ABIERTA },
+      where: { status: CashSessionStatus.ABIERTA, restaurantId },
       include: SESSION_INCLUDE,
     });
     return session ? this.toDto(session) : null;
   }
 
-  async open(dto: OpenSessionDto, actorId: string): Promise<CashSessionDto> {
+  async open(
+    dto: OpenSessionDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<CashSessionDto> {
+    this.ensureRestaurant(restaurantId);
     const existing = await this.prisma.cashSession.findFirst({
-      where: { status: CashSessionStatus.ABIERTA },
+      where: { status: CashSessionStatus.ABIERTA, restaurantId },
     });
     if (existing) {
-      throw new BadRequestException('Ya existe una caja abierta. Ciérrela antes de abrir otra.');
+      throw new BadRequestException('Ya existe una caja abierta en este local. Ciérrela antes de abrir otra.');
     }
     const session = await this.prisma.cashSession.create({
-      data: { openingAmount: new Prisma.Decimal(dto.openingAmount), openedById: actorId },
+      data: {
+        restaurantId,
+        openingAmount: new Prisma.Decimal(dto.openingAmount),
+        openedById: actorId,
+      },
       include: SESSION_INCLUDE,
     });
     await this.audit.record({
@@ -54,16 +70,23 @@ export class CashRegisterService {
       action: 'CASH_OPENED',
       entity: 'CashSession',
       entityId: session.id,
+      restaurantId,
       metadata: { openingAmount: dto.openingAmount },
     });
     return this.toDto(session);
   }
 
-  async addMovement(dto: CreateMovementDto, actorId: string): Promise<CashSessionDto> {
-    const session = await this.requireOpenSession();
+  async addMovement(
+    dto: CreateMovementDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<CashSessionDto> {
+    this.ensureRestaurant(restaurantId);
+    const session = await this.requireOpenSession(restaurantId);
     await this.prisma.cashMovement.create({
       data: {
         sessionId: session.id,
+        restaurantId,
         type: dto.type,
         amount: new Prisma.Decimal(dto.amount),
         description: dto.description,
@@ -75,14 +98,20 @@ export class CashRegisterService {
       action: 'CASH_MOVEMENT',
       entity: 'CashSession',
       entityId: session.id,
+      restaurantId,
       metadata: { type: dto.type, amount: dto.amount, description: dto.description },
     });
-    return (await this.current())!;
+    return (await this.current(restaurantId))!;
   }
 
-  async close(dto: CloseSessionDto, actorId: string): Promise<CashSessionDto> {
-    const session = await this.requireOpenSession();
-    const totals = await this.computeTotals(session);
+  async close(
+    dto: CloseSessionDto,
+    actorId: string,
+    restaurantId: string,
+  ): Promise<CashSessionDto> {
+    this.ensureRestaurant(restaurantId);
+    const session = await this.requireOpenSession(restaurantId);
+    const totals = await this.computeTotals(session, restaurantId);
     const difference = round2(dto.actualAmount - totals.expectedAmount);
 
     const updated = await this.prisma.cashSession.update({
@@ -102,15 +131,17 @@ export class CashRegisterService {
       action: 'CASH_CLOSED',
       entity: 'CashSession',
       entityId: session.id,
+      restaurantId,
       metadata: { expected: totals.expectedAmount, actual: dto.actualAmount, difference },
     });
     return this.toDto(updated);
   }
 
-  /** Historial de sesiones cerradas (más recientes primero). */
-  async history(limit = 50): Promise<CashSessionDto[]> {
+  /** Historial de sesiones cerradas del local (más recientes primero). */
+  async history(limit: number, restaurantId: string): Promise<CashSessionDto[]> {
+    this.ensureRestaurant(restaurantId);
     const sessions = await this.prisma.cashSession.findMany({
-      where: { status: CashSessionStatus.CERRADA },
+      where: { status: CashSessionStatus.CERRADA, restaurantId },
       include: SESSION_INCLUDE,
       orderBy: { closedAt: 'desc' },
       take: Math.min(limit, 200),
@@ -120,22 +151,26 @@ export class CashRegisterService {
 
   // ---- Helpers ----------------------------------------------------------
 
-  private async requireOpenSession(): Promise<SessionWithMovements> {
+  private async requireOpenSession(restaurantId: string): Promise<SessionWithMovements> {
     const session = await this.prisma.cashSession.findFirst({
-      where: { status: CashSessionStatus.ABIERTA },
+      where: { status: CashSessionStatus.ABIERTA, restaurantId },
       include: SESSION_INCLUDE,
     });
     if (!session) {
-      throw new NotFoundException('No hay una caja abierta.');
+      throw new NotFoundException('No hay una caja abierta en este local.');
     }
     return session;
   }
 
   /**
    * Calcula los totales de la sesión:
-   * esperado = apertura + ingresos − egresos + ventas en efectivo del periodo.
+   * esperado = apertura + ingresos − egresos + ventas en efectivo del periodo
+   * (solo del local).
    */
-  private async computeTotals(session: SessionWithMovements): Promise<{
+  private async computeTotals(
+    session: SessionWithMovements,
+    restaurantId: string,
+  ): Promise<{
     totalIncome: number;
     totalExpense: number;
     cashSales: number;
@@ -156,10 +191,14 @@ export class CashRegisterService {
       _sum: { amount: true },
       where: {
         method: PaymentMethod.EFECTIVO,
-        createdAt: { gte: session.openedAt, ...(session.closedAt ? { lte: session.closedAt } : {}) },
+        order: { restaurantId },
+        createdAt: {
+          gte: session.openedAt,
+          ...(session.closedAt ? { lte: session.closedAt } : {}),
+        },
       },
     });
-    const cashSales = round2(toNumber(cashAgg._sum.amount));
+    const cashSales = round2(toNumber(cashAgg._sum.amount ?? 0));
 
     const expectedAmount = round2(
       toNumber(session.openingAmount) + totalIncome - totalExpense + cashSales,
@@ -168,7 +207,7 @@ export class CashRegisterService {
   }
 
   private async toDto(session: SessionWithMovements): Promise<CashSessionDto> {
-    const totals = await this.computeTotals(session);
+    const totals = await this.computeTotals(session, session.restaurantId);
     return {
       id: session.id,
       openingAmount: toNumber(session.openingAmount),

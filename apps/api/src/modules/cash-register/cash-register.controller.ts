@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CashSessionDto } from '@restaurante/shared-types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentRestaurant } from '../../common/decorators/current-restaurant.decorator';
 import { CashRegisterService } from './cash-register.service';
 import { OpenSessionDto } from './dto/open-session.dto';
 import { CreateMovementDto } from './dto/create-movement.dto';
@@ -14,32 +15,47 @@ export class CashRegisterController {
   constructor(private readonly cash: CashRegisterService) {}
 
   @Get('current')
-  @ApiOperation({ summary: 'Obtener la caja abierta actual' })
-  current(): Promise<CashSessionDto | null> {
-    return this.cash.current();
+  @ApiOperation({ summary: 'Obtener la caja abierta actual del local' })
+  current(@CurrentRestaurant('id') restaurantId: string): Promise<CashSessionDto | null> {
+    return this.cash.current(restaurantId);
   }
 
   @Get('history')
-  @ApiOperation({ summary: 'Historial de cajas cerradas' })
-  history(@Query('limit') limit = '50'): Promise<CashSessionDto[]> {
-    return this.cash.history(parseInt(limit, 10) || 50);
+  @ApiOperation({ summary: 'Historial de cajas cerradas del local' })
+  history(
+    @Query('limit') limit = '50',
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<CashSessionDto[]> {
+    return this.cash.history(parseInt(limit, 10) || 50, restaurantId);
   }
 
   @Post('open')
   @ApiOperation({ summary: 'Abrir caja con monto inicial' })
-  open(@Body() dto: OpenSessionDto, @CurrentUser('id') actorId: string): Promise<CashSessionDto> {
-    return this.cash.open(dto, actorId);
+  open(
+    @Body() dto: OpenSessionDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<CashSessionDto> {
+    return this.cash.open(dto, actorId, restaurantId);
   }
 
   @Post('movements')
   @ApiOperation({ summary: 'Registrar ingreso o egreso de caja' })
-  addMovement(@Body() dto: CreateMovementDto, @CurrentUser('id') actorId: string): Promise<CashSessionDto> {
-    return this.cash.addMovement(dto, actorId);
+  addMovement(
+    @Body() dto: CreateMovementDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<CashSessionDto> {
+    return this.cash.addMovement(dto, actorId, restaurantId);
   }
 
   @Post('close')
   @ApiOperation({ summary: 'Cerrar caja y calcular diferencia' })
-  close(@Body() dto: CloseSessionDto, @CurrentUser('id') actorId: string): Promise<CashSessionDto> {
-    return this.cash.close(dto, actorId);
+  close(
+    @Body() dto: CloseSessionDto,
+    @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<CashSessionDto> {
+    return this.cash.close(dto, actorId, restaurantId);
   }
 }

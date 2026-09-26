@@ -16,7 +16,7 @@ export class LoginPage implements OnInit {
   private readonly theme = inject(ThemeService);
   private readonly router = inject(Router);
 
-  readonly email = signal('');
+  readonly identifier = signal('');
   readonly password = signal('');
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -27,19 +27,18 @@ export class LoginPage implements OnInit {
     if (this.auth.isAuthenticated()) {
       void this.router.navigate(['/panel']);
     }
-    void this.theme.load();
+    void this.theme.loadTenant();
   }
 
   async submit(): Promise<void> {
-    if (!this.email() || !this.password()) {
-      this.error.set('Ingrese su correo y contraseña.');
+    if (!this.identifier() || !this.password()) {
+      this.error.set('Ingrese su usuario/correo y contraseña.');
       return;
     }
     this.loading.set(true);
     this.error.set(null);
     try {
-      await this.auth.login(this.email(), this.password());
-      await this.theme.load();
+      await this.auth.login(this.identifier(), this.password());
       await this.router.navigate(['/panel']);
     } catch {
       this.error.set('Credenciales incorrectas. Verifique e intente nuevamente.');

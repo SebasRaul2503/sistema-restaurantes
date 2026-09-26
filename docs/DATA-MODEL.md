@@ -7,18 +7,53 @@ como `Decimal(10,2)` y se expone como `number`.
 ## Diagrama de relaciones (resumen)
 
 ```
-User ──< Order (openedBy)        User ──< Payment ──> BillGroup? 
+User ──< Order (openedBy)        User ──< Payment ──> BillGroup?
 User ──< CashSession ──< CashMovement
 User ──< AuditLog
+User ──< RestaurantMember >── Restaurant
 
-Table ──< Order ──< OrderItem ──> Dish ──> MenuCategory
-                 ├─< BillGroup ──< BillGroupItem ──> OrderItem
-                 └─< Payment
+Restaurant ──< Table ──< Order ──< OrderItem ──> Dish ──> MenuCategory
+                              ├─< BillGroup ──< BillGroupItem ──> OrderItem
+                              └─< Payment
+Restaurant ──< MenuCategory
+Restaurant ──< Dish
+Restaurant ──< CashSession
+Restaurant ──< AuditLog
 
 OrderItem ──(self, ItemReplacement)── OrderItem   # original ↔ reemplazo
 
-RestaurantSettings  (fila única, configuración de marca)
+RestaurantSettings  (fila única, marca del tenant)
 ```
+
+## Multi-local (`Restaurant`)
+
+Un mismo tenant puede operar **N locales/establecimientos** independientes. Cada
+local tiene su propia carta, mesas, pedidos, caja y membresías. La marca visual
+es **heredada del tenant** (`RestaurantSettings`) y puede ser **sobreescrita**
+en cada `Restaurant` con `primaryColor`, `secondaryColor` y `logoUrl` propios.
+
+- `RestaurantMember` define la membresía de un `User` en un `Restaurant` con
+  su **rol por local** (`ADMIN` o `OPERATOR`). Un mismo usuario puede ser
+  `ADMIN` en un local y `OPERATOR` en otro.
+- Un usuario con rol global `ADMIN` y **sin** `RestaurantMember` es tratado como
+  **superadmin**: ve todos los locales y puede operar cualquiera.
+
+### Scoping por local
+
+Las entidades operativas (`Table`, `MenuCategory`, `Dish`, `Order`, `CashSession`,
+`CashMovement`, `AuditLog`) tienen un `restaurantId` obligatorio. El backend
+filtra todas las queries por el `restaurantId` activo, que se resuelve desde:
+
+- header `X-Restaurant-Id`, o
+- query param `?restaurantId=` (alternativa para clientes no web).
+
+El frontend (`restaurantInterceptor`) lo inyecta automáticamente a partir del
+local elegido en el `RestaurantSelector` del topbar.
+
+### Unicidad por local
+
+- `Table.number` — único dentro del local (`@@unique([restaurantId, number])`).
+- `MenuCategory.name` — único dentro del local (`@@unique([restaurantId, name])`).
 
 ## Enumeraciones
 
@@ -36,35 +71,63 @@ RestaurantSettings  (fila única, configuración de marca)
 
 ### User
 Personal del sistema. `passwordHash` (bcrypt, costo 12) nunca se serializa.
-Campos: `email` (único), `name`, `role`, `active`. Relaciones inversas: pedidos
-abiertos, pagos, sesiones/movimientos de caja, auditoría.
+Campos: `email` (único), `name`, `role` (rol **global**; el rol por local vive
+en `RestaurantMember.role`), `active`. Relaciones inversas: pedidos abiertos,
+pagos, sesiones/movimientos de caja, auditoría, membresías, **refresh tokens**.
+
+### RefreshToken
+Tokens de refresh activos. Cada `POST /auth/refresh` crea uno nuevo y revoca
+el anterior (rotación por uso). Permite detectar y anular cualquier refresh
+filtrado en cuanto se use. Vive solo en la cookie httpOnly del cliente (no
+en el body ni en el JS).
+- `jti` (string, único) — claim `jti` del JWT del refresh.
+- `userId` (FK a `users`, cascade on delete).
+- `expiresAt` (DateTime) — alineado con `JWT_REFRESH_EXPIRES_IN` (7d).
+- `revokedAt` (DateTime, nullable) — si está set, el token está revocado.
+- `replacedById` (string, nullable) — jti del refresh que lo sustituyó (trazabilidad).
+- `createdAt` (DateTime).
 
 ### RestaurantSettings
-Fila única de marca y negocio: `name`, `logoUrl`, `primaryColor`,
-`secondaryColor`, `address`, `phone`, `businessInfo`, `currency`. El front la lee
-de forma **pública** para tematizar antes del login.
+Fila única del tenant: `name`, `logoUrl`, `primaryColor`, `secondaryColor`,
+`address`, `phone`, `businessInfo`, `currency`. Sirve como **marca por defecto**
+que cada `Restaurant` puede sobreescribir. El front la lee de forma **pública**
+para tematizar antes del login.
+
+### Restaurant
+Local / establecimiento. `slug` (único, URL-safe), `name`, `address?`, `phone?`,
+`primaryColor?`, `secondaryColor?`, `logoUrl?` (opcionales: si son null, el
+frontend usa los del tenant), `active`. Tabla única por tenant.
+
+### RestaurantMember
+Membresía de un `User` en un `Restaurant`. `role` define el permiso dentro del
+local (puede ser distinto del rol global del usuario). `active` (baja lógica).
+Único por `(userId, restaurantId)`.
 
 ### Table
-Mesa física: `number` (único), `name`, `capacity`, `status`, posición opcional
-(`posX`, `posY`) para la vista de salón, `active` (baja lógica).
+Mesa física: `restaurantId`, `number` (único dentro del local), `name`,
+`capacity`, `status`, posición opcional (`posX`, `posY`) para la vista de salón,
+`active` (baja lógica).
 
 ### MenuCategory / Dish
-- **MenuCategory:** `name` (único), `sortOrder`, `isSystem` (categorías base del
-  seed, no eliminables), `active`.
-- **Dish:** `name`, `description?`, `price` (Decimal), `imageUrl?`, `active`,
-  `categoryId`. El plato no se borra si tiene historial: se desactiva.
+- **MenuCategory:** `restaurantId`, `name` (único dentro del local), `sortOrder`,
+  `isSystem` (categorías base del seed, no eliminables), `active`.
+- **Dish:** `restaurantId`, `name`, `description?`, `price` (Decimal),
+  `imageUrl?`, `active`, `categoryId`. El plato no se borra si tiene historial:
+  se desactiva.
 
 ### Order / OrderItem
-- **Order:** `code` (correlativo legible), `tableId`, `status`, `openedById`,
+- **Order:** `restaurantId` (denormalizado desde la mesa para queries/scopes
+  rápidos), `code` (correlativo), `tableId`, `status`, `notes?`, `openedById`,
   `openedAt`, `closedAt?`. Relaciones: `items`, `billGroups`, `payments`.
 - **OrderItem:** `dishId`, `unitPrice` (**snapshot** del precio al pedir),
   `quantity`, `notes?`, `status`. Protección de platos entregados:
   - `isModified` — el original corregido (se **excluye del total**).
-  - `replacesItemId` (self-relation `ItemReplacement`) — enlaza reemplazo↔original.
+  - `replacesItemId` (self-relation `ItemReplacement`) — enlaza
+    reemplazo↔original.
   - `deliveredAt` — sello al pasar a `ENTREGADO`.
 
 ### BillGroup / BillGroupItem (división de cuenta)
-- **BillGroup:** `name` (etiqueta libre sin PII, p. ej. "Cliente A"),
+- **BillGroup:** `orderId`, `name` (etiqueta libre sin PII, p. ej. "Cliente A"),
   `fixedAmount?` (si está, debe ese monto — modo partes iguales; si es null, se
   calcula desde los ítems asignados).
 - **BillGroupItem:** asigna una porción (`quantity`) de un `OrderItem` a un grupo.
@@ -76,13 +139,15 @@ Mesa física: `number` (único), `name`, `capacity`, `status`, posición opciona
 la **fuente de verdad del dinero cobrado** (los reportes suman pagos).
 
 ### CashSession / CashMovement
-- **CashSession:** `openingAmount`, `expectedAmount?`, `actualAmount?`,
-  `difference?`, `status`, `openedById`, `openedAt`, `closedAt?`. Solo una
-  `ABIERTA` a la vez.
-- **CashMovement:** `type` (INGRESO/EGRESO), `amount`, `description`.
+- **CashSession:** `restaurantId`, `openingAmount`, `expectedAmount?`,
+  `actualAmount?`, `difference?`, `status`, `openedById`, `openedAt`, `closedAt?`.
+  Una sola `ABIERTA` **por local** (no global).
+- **CashMovement:** `sessionId`, `restaurantId` (denormalizado), `type`
+  (INGRESO/EGRESO), `amount`, `description`.
 
 ### AuditLog
-`userId?`, `action` (p. ej. `PAYMENT_REGISTERED`), `entity`, `entityId?`,
+`userId?`, `restaurantId?` (local al que aplica la acción; null para acciones
+globales), `action` (p. ej. `PAYMENT_REGISTERED`), `entity`, `entityId?`,
 `metadata?` (JSON), `createdAt`. Bitácora de acciones sensibles.
 
 ## Cálculos financieros (lógica pura)

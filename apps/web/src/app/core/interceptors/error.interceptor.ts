@@ -7,6 +7,7 @@ import { NotificationService } from '../services/notification.service';
 /**
  * Manejo central de errores: muestra el mensaje del backend (en español) como
  * toast y, ante un 401, intenta refrescar la sesión una vez antes de cerrarla.
+ * El refresh usa la cookie httpOnly (no envía token en el body).
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
@@ -14,13 +15,18 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
-      const isAuthCall = req.url.includes('/auth/login') || req.url.includes('/auth/refresh');
+      const isAuthCall =
+        req.url.includes('/auth/login') ||
+        req.url.includes('/auth/refresh') ||
+        req.url.includes('/auth/logout');
 
-      if (error.status === 401 && !isAuthCall && auth.refreshToken) {
+      if (error.status === 401 && !isAuthCall && auth.isAuthenticated()) {
         return from(auth.refresh()).pipe(
           switchMap((ok) => {
             if (ok) {
-              const retried = req.clone({ setHeaders: { Authorization: `Bearer ${auth.accessToken}` } });
+              const retried = req.clone({
+                setHeaders: { Authorization: `Bearer ${auth.accessToken()}` },
+              });
               return next(retried);
             }
             return throwError(() => error);

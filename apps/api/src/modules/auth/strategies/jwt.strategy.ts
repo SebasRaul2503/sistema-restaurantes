@@ -8,7 +8,7 @@ import { RequestUser } from '../../../common/decorators/current-user.decorator';
 
 export interface JwtPayload {
   sub: string;
-  email: string;
+  email: string | null;
   role: UserRole;
 }
 
@@ -31,6 +31,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!user || !user.active) {
       throw new UnauthorizedException('Sesión no válida.');
     }
-    return { id: user.id, email: user.email, name: user.name, role: user.role as UserRole };
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      name: user.name,
+      role: user.role as UserRole,
+    };
   }
 }

@@ -6,17 +6,42 @@ ruta requiere `Authorization: Bearer <accessToken>`.
 
 **Roles:** _Cualquiera_ = administrador u operador autenticado · _ADMIN_ = solo
 administrador. Los montos se envían/reciben como `number` (soles); las fechas como
-ISO (`yyyy-mm-dd` o ISO datetime).
+ISO-8601 UTC. Los parámetros `from` / `to` en los endpoints de reportes e
+historial se interpretan como **fechas civiles en America/Lima** (UTC-5).
 
 ---
 
 ## Autenticación — `/auth`
 
-| Método | Ruta | Acceso | Descripción |
-|--------|------|--------|-------------|
-| POST | `/auth/login` | Público | Inicia sesión. Body `{ email, password }` → `{ accessToken, refreshToken, user }`. |
-| POST | `/auth/refresh` | Público | Renueva tokens. Body `{ refreshToken }`. |
-| GET  | `/auth/me` | Cualquiera | Usuario autenticado. |
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| POST | `/auth/login` | Público | Inicia sesión. Body `{ email, password }`. Responde `{ accessToken, user }` y **setea la cookie `refresh_token` (httpOnly, Path=/api/auth, SameSite=Strict en prod, Max-Age=7d)**. |
+| POST | `/auth/refresh` | Público | Renueva el access token. **Lee la cookie `refresh_token`**, la rota (revoca el jti anterior, emite uno nuevo) y vuelve a setear la cookie. Body de respuesta: `{ accessToken }`. |
+| POST | `/auth/logout` | Bearer | Cierra la sesión. Revoca el refresh presentado (o todos los del usuario) y limpia la cookie. Responde 204. |
+| GET  | `/auth/me` | Bearer | Usuario + locales disponibles + local activo. Respuesta: `{ user, restaurants, activeRestaurantId, isSuperAdmin }`. Si se envía el header `X-Restaurant-Id`, se incluye en `activeRestaurantId` (verificado). |
+
+> El access token se envía en cada request vía header `Authorization: Bearer …`.
+> El refresh token **nunca** viaja en el body: solo en la cookie httpOnly.
+> La cookie tiene `Path=/api/auth` (alcance limitado) y `Secure` en producción.
+
+## Mis locales — `/my-restaurants` (Cualquiera)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/my-restaurants` | Locales disponibles para el usuario. Si es superadmin (ADMIN sin membresías) devuelve todos; si no, solo donde tiene membresía activa. |
+
+## Locales — `/restaurants` (ADMIN, salvo los marcados)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/restaurants` | Listar **todos** los locales. |
+| POST | `/restaurants` | Crear `{ slug, name, address?, phone?, primaryColor?, secondaryColor?, logoUrl? }`. |
+| GET | `/restaurants/:id` | Obtener un local. |
+| PATCH | `/restaurants/:id` | Actualizar. Acepta `null` en campos de marca para limpiar el override. |
+| GET | `/restaurants/:id/members` | Listar miembros de un local. |
+| POST | `/restaurants/:id/members` | Agregar o reasignar `{ userId, role }`. |
+| PATCH | `/restaurants/:id/members/:memberId` | Cambiar rol/activo `{ role?, active? }`. |
+| GET | `/restaurants/:id/theme` | Marca efectiva del local (override o tenant). |
 
 ## Usuarios — `/users` (ADMIN)
 
@@ -39,9 +64,9 @@ ISO (`yyyy-mm-dd` o ISO datetime).
 
 | Método | Ruta | Acceso | Descripción |
 |--------|------|--------|-------------|
-| GET | `/tables` | Cualquiera | Listar mesas. |
-| GET | `/tables/:id` | Cualquiera | Obtener una mesa. |
-| POST | `/tables` | ADMIN | Crear `{ number, name?, capacity?, posX?, posY? }`. |
+| GET | `/tables` | Cualquiera | Listar mesas **del local activo** (header `X-Restaurant-Id`). |
+| GET | `/tables/:id` | Cualquiera | Obtener una mesa del local activo. |
+| POST | `/tables` | ADMIN | Crear `{ number, name?, capacity?, posX?, posY? }` en el local activo. |
 | PATCH | `/tables/:id` | ADMIN | Actualizar campos. |
 | PATCH | `/tables/:id/status` | Cualquiera | Cambiar estado `{ status }`. |
 | DELETE | `/tables/:id` | ADMIN | Desactivar (baja lógica). |
@@ -50,12 +75,12 @@ ISO (`yyyy-mm-dd` o ISO datetime).
 
 | Método | Ruta | Acceso | Descripción |
 |--------|------|--------|-------------|
-| GET | `/menu/categories` | Cualquiera | Listar categorías. |
-| POST | `/menu/categories` | ADMIN | Crear categoría. |
+| GET | `/menu/categories` | Cualquiera | Listar categorías del local activo. |
+| POST | `/menu/categories` | ADMIN | Crear categoría en el local activo. |
 | PATCH | `/menu/categories/:id` | ADMIN | Actualizar categoría. |
 | DELETE | `/menu/categories/:id` | ADMIN | Eliminar (bloqueada si es del sistema o tiene platos). |
-| GET | `/menu/dishes` | Cualquiera | Listar platos. Query: `categoryId?`, `active?`. |
-| GET | `/menu/dishes/:id` | Cualquiera | Obtener un plato. |
+| GET | `/menu/dishes` | Cualquiera | Listar platos del local activo. Query: `categoryId?`, `active?`. |
+| GET | `/menu/dishes/:id` | Cualquiera | Obtener un plato del local activo. |
 | POST | `/menu/dishes` | ADMIN | Crear `{ name, price, categoryId, description?, imageUrl? }`. |
 | PATCH | `/menu/dishes/:id` | ADMIN | Actualizar plato. |
 | DELETE | `/menu/dishes/:id` | ADMIN | Desactivar (preserva historial). |

@@ -2,10 +2,13 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { AuthService } from '../services/auth.service';
 
-/** Agrega el token de acceso (Bearer) a las peticiones salientes. */
+/**
+ * Agrega el token de acceso (Bearer) a las peticiones salientes. El token
+ * vive en memoria (signal de AuthService), nunca en localStorage.
+ */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
-  const token = auth.accessToken;
+  const token = auth.accessToken();
   const isAuthCall = req.url.includes('/auth/login') || req.url.includes('/auth/refresh');
 
   if (token && !isAuthCall) {

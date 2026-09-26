@@ -1,0 +1,34 @@
+<div class="select-restaurant">
+  <div class="card">
+    <div class="head">
+      <h1>Elige un local</h1>
+      <p class="muted">
+        Tienes más de un local disponible. Selecciona con cuál vas a trabajar en
+        esta sesión.
+      </p>
+    </div>
+
+    <div class="grid">
+      @for (r of restaurants(); track r.id) {
+        <button
+          type="button"
+          class="restaurant-card"
+          [class.active]="r.id === activeId()"
+          (click)="pick(r)"
+        >
+          <div class="avatar">{{ initials(r.name) }}</div>
+          <div class="meta">
+            <strong>{{ r.name }}</strong>
+            <small class="muted">{{ r.address ?? '—' }}</small>
+            @if (r.role) {
+              <span class="role">{{ r.role === 'ADMIN' ? 'Administrador' : 'Operador' }}</span>
+            } @else {
+              <span class="role muted">Acceso completo</span>
+            }
+          </div>
+          <app-icon name="chevron-down" [size]="18" class="chev" />
+        </button>
+      }
+    </div>
+  </div>
+</div>

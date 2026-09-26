@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { OrderDto, PaymentDto } from '@restaurante/shared-types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentRestaurant } from '../../common/decorators/current-restaurant.decorator';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
@@ -13,8 +14,11 @@ export class PaymentsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar pagos de un pedido' })
-  list(@Param('orderId') orderId: string): Promise<PaymentDto[]> {
-    return this.payments.listByOrder(orderId);
+  list(
+    @Param('orderId') orderId: string,
+    @CurrentRestaurant('id') restaurantId: string,
+  ): Promise<PaymentDto[]> {
+    return this.payments.listByOrder(orderId, restaurantId);
   }
 
   @Post()
@@ -23,7 +27,8 @@ export class PaymentsController {
     @Param('orderId') orderId: string,
     @Body() dto: CreatePaymentDto,
     @CurrentUser('id') actorId: string,
+    @CurrentRestaurant('id') restaurantId: string,
   ): Promise<OrderDto> {
-    return this.payments.register(orderId, dto, actorId);
+    return this.payments.register(orderId, dto, actorId, restaurantId);
   }
 }

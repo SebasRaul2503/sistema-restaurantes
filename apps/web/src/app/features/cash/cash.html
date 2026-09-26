@@ -195,7 +195,7 @@
                     <td>{{ m.amount | soles }}</td>
                     <td>{{ m.description }}</td>
                     <td>{{ m.createdByName }}</td>
-                    <td>{{ m.createdAt | date: 'shortTime' }}</td>
+                    <td>{{ m.createdAt | limaDate: 'shortTime' }}</td>
                   </tr>
                 }
               </tbody>
@@ -226,8 +226,8 @@
           <tbody>
             @for (s of history(); track s.id) {
               <tr>
-                <td>{{ s.openedAt | date: 'short' }}</td>
-                <td>{{ s.closedAt | date: 'short' }}</td>
+                <td>{{ s.openedAt | limaDate: 'short' }}</td>
+                <td>{{ s.closedAt | limaDate: 'short' }}</td>
                 <td>{{ s.expectedAmount | soles }}</td>
                 <td>{{ s.actualAmount | soles }}</td>
                 <td>

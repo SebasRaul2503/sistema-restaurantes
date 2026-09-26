@@ -3,7 +3,8 @@ import { UserRole } from '@restaurante/shared-types';
 
 export interface RequestUser {
   id: string;
-  email: string;
+  email: string | null;
+  username: string | null;
   name: string;
   role: UserRole;
 }
