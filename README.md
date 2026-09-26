@@ -91,6 +91,20 @@ El seed inicial crea lo mínimo para arrancar:
 
 > Cambie estos valores y los secretos JWT en `.env` antes de usar en producción.
 
+### Contacto de soporte (datos genéricos)
+
+La pantalla **Soporte** (`/soporte`, `apps/web/src/app/features/support/support.ts`)
+muestra únicamente datos de contacto **genéricos**, sin información personal:
+
+| Canal | Valor |
+|-------|-------|
+| WhatsApp | `+51 999 999 999` → `https://wa.me/51999999999` |
+| Correo | `soporte@sistema-restaurantes.pe` → `mailto:soporte@sistema-restaurantes.pe` |
+
+Estos valores están centralizados en `phoneDisplay`, `email`, `whatsappUrl` y
+`mailtoUrl` de `SupportPage`. **Antes de publicar, reemplácelos por los canales
+oficiales del negocio** (no usar números ni correos personales en el repositorio).
+
 ### Despliegue en producción con Traefik
 
 ```bash

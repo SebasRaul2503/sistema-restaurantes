@@ -12,17 +12,17 @@ import { Icon } from '../../shared/components/icon/icon';
 export class SupportPage {
   private readonly notify = inject(NotificationService);
 
-  // Datos de contacto de soporte.
-  readonly phoneDisplay = '+51 910 840 344';
-  readonly email = 'seracava2503@gmail.com';
+  // Datos de contacto genéricos de soporte (reemplazar por los oficiales al publicar).
+  readonly phoneDisplay = '+51 999 999 999';
+  readonly email = 'soporte@sistema-restaurantes.pe';
 
   /** Enlace de WhatsApp (formato internacional sin símbolos) con mensaje previo. */
   readonly whatsappUrl =
-    'https://wa.me/51910840344?text=' +
+    'https://wa.me/51999999999?text=' +
     encodeURIComponent('Hola, necesito ayuda con el Sistema de Gestión de Restaurantes.');
 
   readonly mailtoUrl =
-    'mailto:seracava2503@gmail.com' +
+    'mailto:soporte@sistema-restaurantes.pe' +
     '?subject=' +
     encodeURIComponent('Soporte — Sistema de Gestión de Restaurantes');
 
