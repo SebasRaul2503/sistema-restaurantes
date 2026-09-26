@@ -166,16 +166,6 @@ La documentación completa para desarrolladores y agentes está en
 
 ---
 
-## 🆘 Soporte
-
-¿Necesitas ayuda? La app incluye una sección **Soporte** en el menú lateral, o
-contáctanos directamente:
-
-- **WhatsApp:** +51 910 840 344
-- **Correo:** seracava2503@gmail.com
-
----
-
 ## 📜 Licencia
 
 Software propietario para demostración comercial. © 2026.
